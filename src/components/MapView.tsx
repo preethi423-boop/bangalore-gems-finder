@@ -20,7 +20,7 @@ function loadMaps(): Promise<void> {
     const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
     window.__initBlrMap = () => resolve();
     const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=__initBlrMap&channel=${channel}`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=geometry&loading=async&callback=__initBlrMap&channel=${channel}`;
     s.async = true;
     s.onerror = () => reject(new Error("Failed to load map"));
     document.head.appendChild(s);
