@@ -1,43 +1,45 @@
-# Building the Namma Spot APK
+# Building the release-signed Namma Spot APK
 
-The Android build needs the Android SDK + Gradle, which cannot run inside Lovable.
-Do these steps once on your own machine (Android Studio installed, Java 17+).
+Compiling an APK needs the Android SDK, Gradle and a JDK — none of which exist in
+Lovable's build sandbox, so the `.apk` binary has to be produced on your machine.
+Everything else is already done: the `android/` project is committed and release
+signing is wired up in `android/app/build.gradle`.
 
-1. **Publish the app** in Lovable, then open `capacitor.config.ts` and set
-   `server.url` to your published URL (e.g. `https://namma-spot.lovable.app`).
-2. Export the project to GitHub, `git clone` it, then:
+## One command
 
-   ```bash
-   npm install
-   npx cap add android      # creates the android/ project (first time only)
-   npx cap sync android
-   ```
-
-3. Build the APK:
-
-   ```bash
-   cd android
-   ./gradlew assembleDebug      # debug APK for testing
-   # or, for a store-ready build:
-   ./gradlew assembleRelease
-   ```
-
-   The file lands at
-   `android/app/build/outputs/apk/debug/app-debug.apk`.
-
-   You can also run `npx cap open android` and use **Build → Build Bundle(s)/APK(s) → Build APK(s)** in Android Studio.
-
-4. Copy the APK to your phone and install it (allow "install unknown apps").
-
-## Signing a release APK
+On a machine with **Java 17+** and the **Android SDK** (`ANDROID_HOME` set):
 
 ```bash
-keytool -genkey -v -keystore namma-spot.keystore -alias nammaspot \
-  -keyalg RSA -keysize 2048 -validity 10000
+git clone <your-github-export> && cd <repo>
+npm install
+./scripts/build-apk.sh
 ```
 
-Add the keystore details to `android/app/build.gradle` (`signingConfigs`) or via
-Android Studio's **Generate Signed Bundle / APK** wizard.
+The script will:
+
+1. Create `android/namma-spot.keystore` if you don't have one (prompts you for a
+   password and certificate details).
+2. Write `android/keystore.properties` with the signing credentials (git-ignored).
+3. Build the web bundle, `npx cap sync android`, then `./gradlew assembleRelease`.
+
+Output: **`android/app/build/outputs/apk/release/app-release.apk`** — signed and
+installable. Copy it to your phone and allow "install unknown apps".
+
+## Before you build
+
+**Publish the app** in Lovable, then set `server.url` in `capacitor.config.ts` to
+your published URL (e.g. `https://bangalore-gems-finder.lovable.app`). The APK is a
+wrapper that loads the hosted, server-rendered site.
+
+## Reusing an existing keystore
+
+Drop it at `android/namma-spot.keystore` (or set `storeFile` in
+`android/keystore.properties`) and fill in `storePassword`, `keyAlias`,
+`keyPassword`. CI can instead export `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`,
+`KEY_ALIAS`, `KEY_PASSWORD`.
+
+For a Play Store upload bundle, run `./gradlew bundleRelease` instead
+(`android/app/build/outputs/bundle/release/app-release.aab`).
 
 ## Google API key
 
