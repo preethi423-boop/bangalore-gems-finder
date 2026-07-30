@@ -49,11 +49,11 @@ export const Route = createFileRoute("/")({
         content:
           "Search any place in and around Bengaluru to see ratings, reviews, nearby parking, street food stalls, shopping and must-see spots on one map.",
       },
-      { property: "og:title", content: "Namma Spot — Explore Bengaluru like a local" },
+      { property: "og:title", content: "Namma Spot — Explore Bengaluru places, parking & street food" },
       {
         property: "og:description",
         content:
-          "Ratings, reviews, parking, street food, shopping and sights around any Bengaluru place.",
+          "Search any place in and around Bengaluru to see ratings, reviews, nearby parking, street food stalls, shopping and must-see spots on one map.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
