@@ -30,7 +30,7 @@ import {
   getNearbyWithKey,
   computeRouteWithKey,
   type RouteResult,
-} from "@/lib/places.client";
+} from "@/lib/places-direct";
 import {
   searchPlaces,
   getPlaceDetails,
