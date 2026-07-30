@@ -1,24 +1,365 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useCallback, useState } from "react";
+import {
+  Search,
+  MapPin,
+  Star,
+  Car,
+  UtensilsCrossed,
+  ShoppingBag,
+  Camera,
+  Coffee,
+  Phone,
+  Globe,
+  Accessibility,
+  Loader2,
+  AlertTriangle,
+} from "lucide-react";
+import { MapView } from "@/components/MapView";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  searchPlaces,
+  getPlaceDetails,
+  getNearby,
+  type PlaceLite,
+  type PlaceDetails,
+  type NearbyGroup,
+} from "@/lib/places.functions";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Namma Spot — Explore Bengaluru places, parking & street food" },
+      {
+        name: "description",
+        content:
+          "Search any place in and around Bengaluru to see ratings, reviews, nearby parking, street food stalls, shopping and must-see spots on one map.",
+      },
+      { property: "og:title", content: "Namma Spot — Explore Bengaluru like a local" },
+      {
+        property: "og:description",
+        content:
+          "Ratings, reviews, parking, street food, shopping and sights around any Bengaluru place.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+const BLR = { lat: 12.9716, lng: 77.5946 };
+
+const GROUP_ICON: Record<string, typeof Car> = {
+  parking: Car,
+  streetfood: UtensilsCrossed,
+  shopping: ShoppingBag,
+  sights: Camera,
+  cafes: Coffee,
+};
+
+const QUICK = ["Lalbagh", "MG Road", "Nandi Hills", "VV Puram Food Street", "Cubbon Park"];
+
+function Stars({ rating }: { rating?: number }) {
+  if (!rating) return null;
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-gold-foreground">
+      <Star className="size-3.5 fill-gold text-gold" />
+      {rating.toFixed(1)}
+    </span>
+  );
+}
+
+function PlaceCard({ p, onClick }: { p: PlaceLite; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="min-w-[220px] max-w-[220px] shrink-0 rounded-xl border border-border bg-card p-3 text-left shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-primary/40"
     >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+      <p className="line-clamp-2 text-sm font-semibold text-card-foreground">{p.name}</p>
+      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{p.address}</p>
+      <div className="mt-2 flex items-center gap-2">
+        <Stars rating={p.rating} />
+        {p.ratingCount ? (
+          <span className="text-[11px] text-muted-foreground">
+            {p.ratingCount.toLocaleString("en-IN")} reviews
+          </span>
+        ) : null}
+      </div>
+      {p.primaryType ? (
+        <Badge variant="secondary" className="mt-2 text-[10px]">
+          {p.primaryType}
+        </Badge>
+      ) : null}
+    </button>
+  );
+}
+
+function Index() {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<PlaceLite[]>([]);
+  const [details, setDetails] = useState<PlaceDetails | null>(null);
+  const [nearby, setNearby] = useState<NearbyGroup[]>([]);
+  const [center, setCenter] = useState(BLR);
+  const [error, setError] = useState<string | null>(null);
+
+  const doSearch = useServerFn(searchPlaces);
+  const doDetails = useServerFn(getPlaceDetails);
+  const doNearby = useServerFn(getNearby);
+
+  const searchMutation = useMutation({
+    mutationFn: (q: string) => doSearch({ data: { query: q } }),
+    onSuccess: (data) => {
+      setResults(data);
+      setError(data.length ? null : "No places found. Try another name.");
+    },
+    onError: () => setError("Could not search right now. Please try again."),
+  });
+
+  const selectMutation = useMutation({
+    mutationFn: async (place: PlaceLite) => {
+      const [d, n] = await Promise.all([
+        doDetails({ data: { placeId: place.id } }),
+        doNearby({ data: { lat: place.lat, lng: place.lng } }),
+      ]);
+      return { d, n };
+    },
+    onSuccess: ({ d, n }) => {
+      setDetails(d);
+      setNearby(n);
+      setCenter({ lat: d.lat, lng: d.lng });
+      setError(null);
+    },
+    onError: () => setError("Could not load this place's details."),
+  });
+
+  const runSearch = (q: string) => {
+    const value = q.trim();
+    if (!value) return;
+    setQuery(value);
+    setResults([]);
+    searchMutation.mutate(value);
+  };
+
+  const select = useCallback(
+    (p: PlaceLite) => {
+      setResults([]);
+      setDetails(null);
+      setNearby([]);
+      setCenter({ lat: p.lat, lng: p.lng });
+      selectMutation.mutate(p);
+    },
+    [selectMutation],
+  );
+
+  const markers = nearby.flatMap((g) => g.places).slice(0, 30);
+
+  return (
+    <main className="relative flex h-screen w-full flex-col overflow-hidden bg-background">
+      <div className="absolute inset-0">
+        <MapView
+          center={center}
+          main={details}
+          markers={markers}
+          onMarkerClick={(p) => select(p)}
+        />
+      </div>
+
+      <header className="relative z-10 px-4 pt-4">
+        <div className="mx-auto w-full max-w-2xl">
+          <h1 className="mb-2 px-1 text-sm font-semibold tracking-wide text-foreground drop-shadow">
+            Namma Spot · Bengaluru & around
+          </h1>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              runSearch(query);
+            }}
+            className="flex items-center gap-2 rounded-full border border-border bg-card p-1.5 pl-4 shadow-[var(--shadow-card)]"
+          >
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search a place in Bengaluru…"
+              className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+              aria-label="Search a place"
+            />
+            <Button type="submit" size="sm" className="rounded-full px-4">
+              {searchMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : "Go"}
+            </Button>
+          </form>
+
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {QUICK.map((q) => (
+              <button
+                key={q}
+                onClick={() => runSearch(q)}
+                className="rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+
+          {error ? (
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-card/95 px-3 py-1.5 text-xs text-destructive">
+              <AlertTriangle className="size-3.5" /> {error}
+            </p>
+          ) : null}
+
+          {results.length > 0 ? (
+            <ul className="mt-2 max-h-72 overflow-y-auto rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]">
+              {results.map((r) => (
+                <li key={r.id}>
+                  <button
+                    onClick={() => select(r)}
+                    className="flex w-full items-start gap-3 border-b border-border/60 px-4 py-3 text-left last:border-0 hover:bg-secondary"
+                  >
+                    <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{r.name}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {r.address}
+                      </span>
+                    </span>
+                    <span className="ml-auto shrink-0">
+                      <Stars rating={r.rating} />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </header>
+
+      <section className="relative z-10 mt-auto max-h-[62vh] overflow-y-auto rounded-t-3xl border-t border-border bg-card/95 shadow-[var(--shadow-sheet)] backdrop-blur">
+        <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-4">
+          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+
+          {selectMutation.isPending ? (
+            <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Gathering parking, street food and sights…
+            </p>
+          ) : !details ? (
+            <div className="py-4">
+              <h2 className="text-base font-semibold">Pick a spot to see the full picture</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Search any place across Bengaluru — you'll get its rating and real reviews, plus
+                parking nearby, street food stalls, shopping, and the things worth seeing there.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold leading-tight">{details.name}</h2>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{details.address}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Stars rating={details.rating} />
+                  {details.ratingCount ? (
+                    <span className="text-xs text-muted-foreground">
+                      {details.ratingCount.toLocaleString("en-IN")} ratings
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              {details.summary ? (
+                <p className="mt-2 text-sm text-foreground/90">{details.summary}</p>
+              ) : null}
+
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                {details.primaryType ? <Badge variant="secondary">{details.primaryType}</Badge> : null}
+                {details.wheelchair ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <Accessibility className="size-3" /> Step-free entry
+                  </Badge>
+                ) : null}
+                {details.hours[0] ? <Badge variant="outline">{details.hours[0]}</Badge> : null}
+                {details.phone ? (
+                  <a
+                    href={`tel:${details.phone}`}
+                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <Phone className="size-3" /> {details.phone}
+                  </a>
+                ) : null}
+                {details.website ? (
+                  <a
+                    href={details.website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <Globe className="size-3" /> Website
+                  </a>
+                ) : null}
+              </div>
+
+              {nearby.map((group) => {
+                const Icon = GROUP_ICON[group.key] ?? MapPin;
+                if (!group.places.length) return null;
+                return (
+                  <div key={group.key} className="mt-5">
+                    <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                      <Icon className="size-4 text-primary" />
+                      {group.label}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        · {group.places.length} nearby
+                      </span>
+                    </h3>
+                    <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+                      {group.places.map((p) => (
+                        <PlaceCard key={p.id} p={p} onClick={() => select(p)} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {details.reviews.length ? (
+                <div className="mt-5">
+                  <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                    <Star className="size-4 text-primary" /> What visitors say
+                  </h3>
+                  <ul className="space-y-2">
+                    {details.reviews.map((r, i) => (
+                      <li key={i} className="rounded-xl border border-border bg-background p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{r.author}</span>
+                          <span className="flex items-center gap-2">
+                            <Stars rating={r.rating} />
+                            <span className="text-[11px] text-muted-foreground">{r.relative}</span>
+                          </span>
+                        </div>
+                        <p className="mt-1 line-clamp-4 text-sm text-muted-foreground">{r.text}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {details.mapsUri ? (
+                <a
+                  href={details.mapsUri}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-5 inline-flex text-xs text-muted-foreground underline underline-offset-4"
+                >
+                  Open in Google Maps
+                </a>
+              ) : null}
+            </>
+          )}
+        </div>
+      </section>
+    </main>
   );
 }
