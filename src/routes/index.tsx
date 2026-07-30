@@ -353,6 +353,28 @@ function Index() {
                 ) : null}
               </div>
 
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="gap-1.5"
+                  onClick={() => routeMutation.mutate({ lat: details.lat, lng: details.lng })}
+                  disabled={routeMutation.isPending}
+                >
+                  {routeMutation.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Navigation className="size-4" />
+                  )}
+                  Route from my location
+                </Button>
+                {route ? (
+                  <span className="text-xs text-muted-foreground">
+                    {route.distanceText} · about {route.durationText} by car
+                  </span>
+                ) : null}
+              </div>
+
               {nearby.map((group) => {
                 const Icon = GROUP_ICON[group.key] ?? MapPin;
                 if (!group.places.length) return null;
