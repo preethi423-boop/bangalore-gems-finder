@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Search,
   MapPin,
@@ -16,11 +16,21 @@ import {
   Accessibility,
   Loader2,
   AlertTriangle,
+  Navigation,
 } from "lucide-react";
 import { MapView } from "@/components/MapView";
+import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { getUserKey } from "@/lib/user-key";
+import {
+  searchPlacesWithKey,
+  getPlaceDetailsWithKey,
+  getNearbyWithKey,
+  computeRouteWithKey,
+  type RouteResult,
+} from "@/lib/places.client";
 import {
   searchPlaces,
   getPlaceDetails,
@@ -106,13 +116,18 @@ function Index() {
   const [nearby, setNearby] = useState<NearbyGroup[]>([]);
   const [center, setCenter] = useState(BLR);
   const [error, setError] = useState<string | null>(null);
+  const [userKey, setUserKeyState] = useState("");
+  const [route, setRoute] = useState<RouteResult | null>(null);
+
+  useEffect(() => setUserKeyState(getUserKey()), []);
 
   const doSearch = useServerFn(searchPlaces);
   const doDetails = useServerFn(getPlaceDetails);
   const doNearby = useServerFn(getNearby);
 
   const searchMutation = useMutation({
-    mutationFn: (q: string) => doSearch({ data: { query: q } }),
+    mutationFn: (q: string) =>
+      userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } }),
     onSuccess: (data) => {
       setResults(data);
       setError(data.length ? null : "No places found. Try another name.");
@@ -123,8 +138,12 @@ function Index() {
   const selectMutation = useMutation({
     mutationFn: async (place: PlaceLite) => {
       const [d, n] = await Promise.all([
-        doDetails({ data: { placeId: place.id } }),
-        doNearby({ data: { lat: place.lat, lng: place.lng } }),
+        userKey
+          ? getPlaceDetailsWithKey(userKey, place.id)
+          : doDetails({ data: { placeId: place.id } }),
+        userKey
+          ? getNearbyWithKey(userKey, place.lat, place.lng)
+          : doNearby({ data: { lat: place.lat, lng: place.lng } }),
       ]);
       return { d, n };
     },
@@ -135,6 +154,34 @@ function Index() {
       setError(null);
     },
     onError: () => setError("Could not load this place's details."),
+  });
+
+  const routeMutation = useMutation({
+    mutationFn: async (dest: { lat: number; lng: number }) => {
+      const key = userKey;
+      if (!key) throw new Error("no-key");
+      const origin = await new Promise<{ lat: number; lng: number }>((resolve, reject) => {
+        if (!navigator.geolocation) return reject(new Error("no-geo"));
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => reject(new Error("no-geo")),
+          { enableHighAccuracy: true, timeout: 10000 },
+        );
+      });
+      return computeRouteWithKey(key, origin, dest, "DRIVE");
+    },
+    onSuccess: (r) => {
+      setRoute(r);
+      setError(null);
+    },
+    onError: (e: Error) =>
+      setError(
+        e.message === "no-key"
+          ? "Add your Google API key to get routing."
+          : e.message === "no-geo"
+            ? "Location permission is needed to build a route."
+            : "Could not build a route right now.",
+      ),
   });
 
   const runSearch = (q: string) => {
@@ -150,6 +197,7 @@ function Index() {
       setResults([]);
       setDetails(null);
       setNearby([]);
+      setRoute(null);
       setCenter({ lat: p.lat, lng: p.lng });
       selectMutation.mutate(p);
     },
@@ -166,6 +214,7 @@ function Index() {
           main={details}
           markers={markers}
           onMarkerClick={(p) => select(p)}
+          routePolyline={route?.polyline ?? null}
         />
       </div>
 
@@ -195,6 +244,7 @@ function Index() {
           </form>
 
           <div className="mt-2 flex flex-wrap gap-1.5">
+            <ApiKeyDialog hasKey={Boolean(userKey)} />
             {QUICK.map((q) => (
               <button
                 key={q}
@@ -300,6 +350,28 @@ function Index() {
                   >
                     <Globe className="size-3" /> Website
                   </a>
+                ) : null}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="gap-1.5"
+                  onClick={() => routeMutation.mutate({ lat: details.lat, lng: details.lng })}
+                  disabled={routeMutation.isPending}
+                >
+                  {routeMutation.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Navigation className="size-4" />
+                  )}
+                  Route from my location
+                </Button>
+                {route ? (
+                  <span className="text-xs text-muted-foreground">
+                    {route.distanceText} · about {route.durationText} by car
+                  </span>
                 ) : null}
               </div>
 

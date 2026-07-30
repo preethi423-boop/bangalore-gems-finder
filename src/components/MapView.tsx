@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { PlaceLite } from "@/lib/places.functions";
+import { effectiveMapsKey } from "@/lib/user-key";
 
 declare global {
   interface Window {
@@ -15,11 +16,11 @@ function loadMaps(): Promise<void> {
   if (window.google?.maps) return Promise.resolve();
   if (loaderPromise) return loaderPromise;
   loaderPromise = new Promise<void>((resolve, reject) => {
-    const key = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
+    const key = effectiveMapsKey();
     const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
     window.__initBlrMap = () => resolve();
     const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=__initBlrMap&channel=${channel}`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=geometry&loading=async&callback=__initBlrMap&channel=${channel}`;
     s.async = true;
     s.onerror = () => reject(new Error("Failed to load map"));
     document.head.appendChild(s);
@@ -32,12 +33,14 @@ type Props = {
   main?: PlaceLite | null;
   markers: PlaceLite[];
   onMarkerClick?: (p: PlaceLite) => void;
+  routePolyline?: string | null;
 };
 
-export function MapView({ center, main, markers, onMarkerClick }: Props) {
+export function MapView({ center, main, markers, onMarkerClick, routePolyline }: Props) {
   const el = useRef<HTMLDivElement | null>(null);
   const map = useRef<any>(null);
   const drawn = useRef<any[]>([]);
+  const line = useRef<any>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +92,26 @@ export function MapView({ center, main, markers, onMarkerClick }: Props) {
       drawn.current.push(marker);
     });
   }, [main?.id, markers, onMarkerClick]);
+
+  useEffect(() => {
+    if (!map.current || !window.google?.maps?.geometry) return;
+    if (line.current) {
+      line.current.setMap(null);
+      line.current = null;
+    }
+    if (!routePolyline) return;
+    const path = window.google.maps.geometry.encoding.decodePath(routePolyline);
+    line.current = new window.google.maps.Polyline({
+      path,
+      map: map.current,
+      strokeColor: "#c2410c",
+      strokeOpacity: 0.9,
+      strokeWeight: 5,
+    });
+    const bounds = new window.google.maps.LatLngBounds();
+    path.forEach((pt: any) => bounds.extend(pt));
+    map.current.fitBounds(bounds, 60);
+  }, [routePolyline]);
 
   return <div ref={el} className="h-full w-full" aria-label="Map of the selected place" />;
 }
