@@ -130,10 +130,10 @@ export const getPlaceDetails = createServerFn({ method: "POST" })
   });
 
 const CATEGORIES = [
-  { key: "parking", label: "Parking", query: "parking lot", radius: 1200 },
+  { key: "parking", label: "Parking", query: "parking lot", radius: 5000 },
   { key: "streetfood", label: "Street food", query: "street food stall chaat darshini", radius: 1200 },
   { key: "shopping", label: "Shopping", query: "shopping market mall", radius: 2000 },
-  { key: "sights", label: "Must see", query: "tourist attraction landmark viewpoint", radius: 3000 },
+  { key: "sights", label: "Must see", query: "tourist attraction landmark viewpoint", radius: 5000 },
   { key: "cafes", label: "Cafes & eats", query: "cafe restaurant", radius: 1200 },
 ];
 
