@@ -73,6 +73,7 @@ const GROUP_ICON: Record<string, typeof Car> = {
 };
 
 const QUICK = ["Lalbagh", "MG Road", "Nandi Hills", "VV Puram Food Street", "Cubbon Park"];
+const RANGES: number[] = [5, 10, 25];
 
 function Stars({ rating }: { rating?: number }) {
   if (!rating) return null;
@@ -118,6 +119,8 @@ function Index() {
   const [error, setError] = useState<string | null>(null);
   const [userKey, setUserKeyState] = useState("");
   const [route, setRoute] = useState<RouteResult | null>(null);
+  const [rangeKm, setRangeKm] = useState(5);
+  const [lastPlace, setLastPlace] = useState<PlaceLite | null>(null);
 
   useEffect(() => setUserKeyState(getUserKey()), []);
 
@@ -136,14 +139,14 @@ function Index() {
   });
 
   const selectMutation = useMutation({
-    mutationFn: async (place: PlaceLite) => {
+    mutationFn: async ({ place, range }: { place: PlaceLite; range: number }) => {
       const [d, n] = await Promise.all([
         userKey
           ? getPlaceDetailsWithKey(userKey, place.id)
           : doDetails({ data: { placeId: place.id } }),
         userKey
-          ? getNearbyWithKey(userKey, place.lat, place.lng)
-          : doNearby({ data: { lat: place.lat, lng: place.lng } }),
+          ? getNearbyWithKey(userKey, place.lat, place.lng, range)
+          : doNearby({ data: { lat: place.lat, lng: place.lng, rangeKm: range } }),
       ]);
       return { d, n };
     },
@@ -198,11 +201,20 @@ function Index() {
       setDetails(null);
       setNearby([]);
       setRoute(null);
+      setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
-      selectMutation.mutate(p);
+      selectMutation.mutate({ place: p, range: rangeKm });
     },
-    [selectMutation],
+    [selectMutation, rangeKm],
   );
+
+  const changeRange = (km: number) => {
+    setRangeKm(km);
+    if (lastPlace) {
+      setNearby([]);
+      selectMutation.mutate({ place: lastPlace, range: km });
+    }
+  };
 
   const markers = nearby.flatMap((g) => g.places).slice(0, 30);
 
@@ -245,6 +257,28 @@ function Index() {
 
           <div className="mt-2 flex flex-wrap gap-1.5">
             <ApiKeyDialog hasKey={Boolean(userKey)} />
+            <div
+              role="group"
+              aria-label="Search range"
+              className="flex items-center gap-1 rounded-full border border-border bg-card/90 px-1.5 py-1 backdrop-blur"
+            >
+              <span className="pl-1 pr-0.5 text-[11px] text-muted-foreground">Range</span>
+              {RANGES.map((km) => (
+                <button
+                  key={km}
+                  type="button"
+                  onClick={() => changeRange(km)}
+                  aria-pressed={rangeKm === km}
+                  className={`rounded-full px-2.5 py-0.5 text-xs transition ${
+                    rangeKm === km
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {km} km
+                </button>
+              ))}
+            </div>
             {QUICK.map((q) => (
               <button
                 key={q}

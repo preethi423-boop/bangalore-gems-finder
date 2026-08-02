@@ -84,16 +84,19 @@ export async function getNearbyWithKey(
   key: string,
   lat: number,
   lng: number,
+  rangeKm = 5,
 ): Promise<NearbyGroup[]> {
   const center = { latitude: lat, longitude: lng };
+  const scale = (rangeKm > 0 ? rangeKm : 5) / 5;
   return Promise.all(
     CATEGORIES.map(async (c) => {
+      const radius = Math.min(50000, Math.round(c.radius * scale));
       try {
         const json = await call(`${PLACES}/places:searchText`, key, LITE_MASK, {
           textQuery: c.query,
           maxResultCount: 8,
           regionCode: "IN",
-          locationBias: { circle: { center, radius: c.radius } },
+          locationBias: { circle: { center, radius } },
         });
         return { key: c.key, label: c.label, places: (json.places ?? []).map(toLite) };
       } catch {
