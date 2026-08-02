@@ -73,6 +73,7 @@ const GROUP_ICON: Record<string, typeof Car> = {
 };
 
 const QUICK = ["Lalbagh", "MG Road", "Nandi Hills", "VV Puram Food Street", "Cubbon Park"];
+const RANGES: number[] = [5, 10, 25];
 
 function Stars({ rating }: { rating?: number }) {
   if (!rating) return null;
