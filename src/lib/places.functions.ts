@@ -138,20 +138,23 @@ const CATEGORIES = [
 ];
 
 export const getNearby = createServerFn({ method: "POST" })
-  .inputValidator((data: { lat: number; lng: number }) => ({
+  .inputValidator((data: { lat: number; lng: number; rangeKm?: number }) => ({
     lat: Number(data.lat),
     lng: Number(data.lng),
+    rangeKm: Number(data.rangeKm) > 0 ? Number(data.rangeKm) : 5,
   }))
   .handler(async ({ data }): Promise<NearbyGroup[]> => {
     const center = { latitude: data.lat, longitude: data.lng };
+    const scale = data.rangeKm / 5;
     return Promise.all(
       CATEGORIES.map(async (c) => {
+        const radius = Math.min(50000, Math.round(c.radius * scale));
         try {
           const json = await gateway("/places/v1/places:searchText", LITE_MASK, {
             textQuery: c.query,
             maxResultCount: 8,
             regionCode: "IN",
-            locationBias: { circle: { center, radius: c.radius } },
+            locationBias: { circle: { center, radius } },
           });
           return { key: c.key, label: c.label, places: (json.places ?? []).map(toLite) };
         } catch (e) {
