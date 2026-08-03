@@ -121,6 +121,26 @@ function Index() {
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [rangeKm, setRangeKm] = useState(5);
   const [lastPlace, setLastPlace] = useState<PlaceLite | null>(null);
+  const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
+  const dragStart = useRef<{ y: number; snap: typeof sheet } | null>(null);
+
+  const SHEET_H: Record<"peek" | "half" | "full", string> = {
+    peek: "16vh",
+    half: "46vh",
+    full: "85vh",
+  };
+
+  const endDrag = (endY: number) => {
+    const start = dragStart.current;
+    dragStart.current = null;
+    if (!start) return;
+    const dy = endY - start.y;
+    const order: Array<"peek" | "half" | "full"> = ["peek", "half", "full"];
+    let i = order.indexOf(start.snap);
+    if (dy < -40) i = Math.min(i + 1, 2);
+    else if (dy > 40) i = Math.max(i - 1, 0);
+    setSheet(order[i]);
+  };
 
   useEffect(() => setUserKeyState(getUserKey()), []);
 
@@ -203,6 +223,7 @@ function Index() {
       setRoute(null);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
+      setSheet("peek");
       selectMutation.mutate({ place: p, range: rangeKm });
     },
     [selectMutation, rangeKm],
