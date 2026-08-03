@@ -227,6 +227,7 @@ function Index() {
           markers={markers}
           onMarkerClick={(p) => select(p)}
           routePolyline={route?.polyline ?? null}
+          threeD={Boolean(details)}
         />
       </div>
 
