@@ -34,9 +34,10 @@ type Props = {
   markers: PlaceLite[];
   onMarkerClick?: (p: PlaceLite) => void;
   routePolyline?: string | null;
+  threeD?: boolean;
 };
 
-export function MapView({ center, main, markers, onMarkerClick, routePolyline }: Props) {
+export function MapView({ center, main, markers, onMarkerClick, routePolyline, threeD }: Props) {
   const el = useRef<HTMLDivElement | null>(null);
   const map = useRef<any>(null);
   const drawn = useRef<any[]>([]);
@@ -53,6 +54,8 @@ export function MapView({ center, main, markers, onMarkerClick, routePolyline }:
             zoom: 14,
             disableDefaultUI: true,
             zoomControl: true,
+            rotateControl: true,
+            tiltInteractionEnabled: true,
             gestureHandling: "greedy",
           });
         }
@@ -67,6 +70,31 @@ export function MapView({ center, main, markers, onMarkerClick, routePolyline }:
     if (!map.current) return;
     map.current.panTo(center);
   }, [center.lat, center.lng]);
+
+  // Swap to a tilted 3D aerial view once a place is selected.
+  useEffect(() => {
+    let raf = 0;
+    const apply = () => {
+      if (!map.current || !window.google) {
+        raf = window.setTimeout(apply, 200) as unknown as number;
+        return;
+      }
+      if (threeD) {
+        map.current.setMapTypeId(window.google.maps.MapTypeId.HYBRID);
+        map.current.setCenter(center);
+        map.current.setZoom(18);
+        map.current.setTilt(45);
+        map.current.setHeading(0);
+      } else {
+        map.current.setTilt(0);
+        map.current.setHeading(0);
+        map.current.setMapTypeId(window.google.maps.MapTypeId.ROADMAP);
+        map.current.setZoom(14);
+      }
+    };
+    apply();
+    return () => clearTimeout(raf);
+  }, [threeD, center.lat, center.lng]);
 
   useEffect(() => {
     if (!map.current || !window.google) return;
