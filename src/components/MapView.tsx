@@ -42,7 +42,6 @@ export function MapView({ center, main, markers, onMarkerClick, routePolyline, t
   const map = useRef<any>(null);
   const drawn = useRef<any[]>([]);
   const line = useRef<any>(null);
-  const ready = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +58,6 @@ export function MapView({ center, main, markers, onMarkerClick, routePolyline, t
             tiltInteractionEnabled: true,
             gestureHandling: "greedy",
           });
-          ready.current = true;
         }
       })
       .catch((e) => console.error(e));
