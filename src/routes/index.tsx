@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Search,
   MapPin,
@@ -344,9 +344,24 @@ function Index() {
         </div>
       </header>
 
-      <section className="relative z-10 mt-auto max-h-[62vh] overflow-y-auto rounded-t-3xl border-t border-border bg-card/95 shadow-[var(--shadow-sheet)] backdrop-blur">
-        <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-4">
-          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+      <section
+        style={{ height: SHEET_H[sheet] }}
+        className="relative z-10 mt-auto flex flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card/95 shadow-[var(--shadow-sheet)] backdrop-blur transition-[height] duration-300 ease-out"
+      >
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Drag to resize the details panel"
+          onPointerDown={(e) => {
+            dragStart.current = { y: e.clientY, snap: sheet };
+          }}
+          onPointerUp={(e) => endDrag(e.clientY)}
+          onClick={() => setSheet(sheet === "full" ? "peek" : sheet === "half" ? "full" : "half")}
+          className="shrink-0 cursor-grab touch-none py-3 active:cursor-grabbing"
+        >
+          <div className="mx-auto h-1.5 w-12 rounded-full bg-border" />
+        </div>
+        <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 pb-8">
 
           {selectMutation.isPending ? (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
