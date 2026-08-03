@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Search,
   MapPin,
@@ -121,6 +121,26 @@ function Index() {
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [rangeKm, setRangeKm] = useState(5);
   const [lastPlace, setLastPlace] = useState<PlaceLite | null>(null);
+  const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
+  const dragStart = useRef<{ y: number; snap: typeof sheet } | null>(null);
+
+  const SHEET_H: Record<"peek" | "half" | "full", string> = {
+    peek: "16vh",
+    half: "46vh",
+    full: "85vh",
+  };
+
+  const endDrag = (endY: number) => {
+    const start = dragStart.current;
+    dragStart.current = null;
+    if (!start) return;
+    const dy = endY - start.y;
+    const order: Array<"peek" | "half" | "full"> = ["peek", "half", "full"];
+    let i = order.indexOf(start.snap);
+    if (dy < -40) i = Math.min(i + 1, 2);
+    else if (dy > 40) i = Math.max(i - 1, 0);
+    setSheet(order[i]);
+  };
 
   useEffect(() => setUserKeyState(getUserKey()), []);
 
@@ -203,6 +223,7 @@ function Index() {
       setRoute(null);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
+      setSheet("peek");
       selectMutation.mutate({ place: p, range: rangeKm });
     },
     [selectMutation, rangeKm],
@@ -323,9 +344,24 @@ function Index() {
         </div>
       </header>
 
-      <section className="relative z-10 mt-auto max-h-[62vh] overflow-y-auto rounded-t-3xl border-t border-border bg-card/95 shadow-[var(--shadow-sheet)] backdrop-blur">
-        <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-4">
-          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+      <section
+        style={{ height: SHEET_H[sheet] }}
+        className="relative z-10 mt-auto flex flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card/95 shadow-[var(--shadow-sheet)] backdrop-blur transition-[height] duration-300 ease-out"
+      >
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Drag to resize the details panel"
+          onPointerDown={(e) => {
+            dragStart.current = { y: e.clientY, snap: sheet };
+          }}
+          onPointerUp={(e) => endDrag(e.clientY)}
+          onClick={() => setSheet(sheet === "full" ? "peek" : sheet === "half" ? "full" : "half")}
+          className="shrink-0 cursor-grab touch-none py-3 active:cursor-grabbing"
+        >
+          <div className="mx-auto h-1.5 w-12 rounded-full bg-border" />
+        </div>
+        <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 pb-8">
 
           {selectMutation.isPending ? (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">

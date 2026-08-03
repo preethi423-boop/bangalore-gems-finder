@@ -82,9 +82,16 @@ export function MapView({ center, main, markers, onMarkerClick, routePolyline, t
       if (threeD) {
         map.current.setMapTypeId(window.google.maps.MapTypeId.HYBRID);
         map.current.setCenter(center);
-        map.current.setZoom(18);
-        map.current.setTilt(45);
-        map.current.setHeading(0);
+        map.current.setZoom(19);
+        // 45° aerial imagery only kicks in once the tiles for this zoom exist,
+        // so re-apply tilt/heading after the first tile load.
+        const tiltIn = () => {
+          map.current.setTilt(45);
+          map.current.setHeading(45);
+        };
+        tiltIn();
+        window.google.maps.event.addListenerOnce(map.current, "tilesloaded", tiltIn);
+        window.google.maps.event.addListenerOnce(map.current, "idle", tiltIn);
       } else {
         map.current.setTilt(0);
         map.current.setHeading(0);
