@@ -15,6 +15,13 @@ export const CATEGORIES = [
   { key: "shopping", label: "Shopping", query: "shopping market mall", radius: 2000 },
   { key: "sights", label: "Must see", query: "tourist attraction landmark viewpoint", radius: 5000 },
   { key: "cafes", label: "Cafes & eats", query: "cafe restaurant", radius: 1200 },
+  { key: "evcar", label: "Car charging", query: "electric car charging station", radius: 5000 },
+  {
+    key: "evbike",
+    label: "Bike charging",
+    query: "electric two wheeler scooter bike charging station",
+    radius: 5000,
+  },
 ];
 
 function toLite(p: any): PlaceLite {
