@@ -17,6 +17,10 @@ import {
   Loader2,
   AlertTriangle,
   Navigation,
+  Maximize2,
+  Minimize2,
+  Zap,
+  Bike,
 } from "lucide-react";
 import { MapView } from "@/components/MapView";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
@@ -70,6 +74,8 @@ const GROUP_ICON: Record<string, typeof Car> = {
   shopping: ShoppingBag,
   sights: Camera,
   cafes: Coffee,
+  evcar: Zap,
+  evbike: Bike,
 };
 
 const QUICK = ["Lalbagh", "MG Road", "Nandi Hills", "VV Puram Food Street", "Cubbon Park"];
@@ -122,6 +128,7 @@ function Index() {
   const [rangeKm, setRangeKm] = useState(5);
   const [lastPlace, setLastPlace] = useState<PlaceLite | null>(null);
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
+  const [fullMap, setFullMap] = useState(false);
   const dragStart = useRef<{ y: number; snap: typeof sheet } | null>(null);
 
   const SHEET_H: Record<"peek" | "half" | "full", string> = {
@@ -224,6 +231,7 @@ function Index() {
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
       setSheet("peek");
+      setFullMap(false);
       selectMutation.mutate({ place: p, range: rangeKm });
     },
     [selectMutation, rangeKm],
@@ -252,7 +260,17 @@ function Index() {
         />
       </div>
 
-      <header className="relative z-10 px-4 pt-4">
+      <button
+        type="button"
+        onClick={() => setFullMap((v) => !v)}
+        aria-label={fullMap ? "Exit full-screen map" : "Full-screen map"}
+        className="absolute right-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/95 px-3 py-2 text-xs font-medium shadow-[var(--shadow-card)] backdrop-blur transition hover:border-primary/50"
+      >
+        {fullMap ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+        {fullMap ? "Show details" : "Full map"}
+      </button>
+
+      <header className={`relative z-10 px-4 pt-4 ${fullMap ? "hidden" : ""}`}>
         <div className="mx-auto w-full max-w-2xl">
           <h1 className="mb-2 px-1 text-sm font-semibold tracking-wide text-foreground drop-shadow">
             Namma Spot · Bengaluru & around
@@ -345,8 +363,10 @@ function Index() {
       </header>
 
       <section
-        style={{ height: SHEET_H[sheet] }}
-        className="relative z-10 mt-auto flex flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card/95 shadow-[var(--shadow-sheet)] backdrop-blur transition-[height] duration-300 ease-out"
+        style={{ height: fullMap ? "0vh" : SHEET_H[sheet] }}
+        className={`relative z-10 mt-auto flex flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card/95 shadow-[var(--shadow-sheet)] backdrop-blur transition-[height] duration-300 ease-out ${
+          fullMap ? "pointer-events-none border-0 opacity-0" : ""
+        }`}
       >
         <div
           role="button"
