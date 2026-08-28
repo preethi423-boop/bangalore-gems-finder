@@ -22,7 +22,8 @@ import {
   Zap,
   Bike,
 } from "lucide-react";
-import { MapView } from "@/components/MapView";
+import { MapView, type MapMarker } from "@/components/MapView";
+import { SharePlaceCard } from "@/components/SharePlaceCard";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
