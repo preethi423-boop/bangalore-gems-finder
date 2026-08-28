@@ -238,6 +238,49 @@ function Index() {
     [selectMutation, rangeKm],
   );
 
+  const selectByIdMutation = useMutation({
+    mutationFn: async ({ placeId, range }: { placeId: string; range: number }) => {
+      const d = userKey
+        ? await getPlaceDetailsWithKey(userKey, placeId)
+        : await doDetails({ data: { placeId } });
+      const n = userKey
+        ? await getNearbyWithKey(userKey, d.lat, d.lng, range)
+        : await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
+      return { d, n };
+    },
+    onSuccess: ({ d, n }) => {
+      setDetails(d);
+      setNearby(n);
+      setLastPlace(d);
+      setCenter({ lat: d.lat, lng: d.lng });
+      setError(null);
+    },
+    onError: () => setError("Could not load details for that spot."),
+  });
+
+  const selectById = useCallback(
+    (placeId: string) => {
+      setResults([]);
+      setDetails(null);
+      setNearby([]);
+      setRoute(null);
+      setSheet("half");
+      setFullMap(false);
+      selectByIdMutation.mutate({ placeId, range: rangeKm });
+    },
+    [selectByIdMutation, rangeKm],
+  );
+
+  // Open a shared link like /?place=<id> straight into that place's details.
+  const openedShared = useRef(false);
+  useEffect(() => {
+    if (openedShared.current) return;
+    const id = new URLSearchParams(window.location.search).get("place");
+    if (!id) return;
+    openedShared.current = true;
+    selectById(id);
+  }, [selectById]);
+
   const changeRange = (km: number) => {
     setRangeKm(km);
     if (lastPlace) {
