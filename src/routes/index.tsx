@@ -467,6 +467,9 @@ function Index() {
                 ) : null}
               </div>
 
+              <SharePlaceCard details={details} nearby={nearby} />
+
+
               {nearby.map((group) => {
                 const Icon = GROUP_ICON[group.key] ?? MapPin;
                 if (!group.places.length) return null;
