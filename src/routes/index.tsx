@@ -301,6 +301,7 @@ function Index() {
           main={details}
           markers={markers}
           onMarkerClick={(p) => select(p)}
+          onPoiSelect={selectById}
           routePolyline={route?.polyline ?? null}
           threeD={Boolean(details)}
         />
@@ -429,7 +430,7 @@ function Index() {
         </div>
         <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 pb-8">
 
-          {selectMutation.isPending ? (
+          {selectMutation.isPending || selectByIdMutation.isPending ? (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Gathering parking, street food and sights…
             </p>
