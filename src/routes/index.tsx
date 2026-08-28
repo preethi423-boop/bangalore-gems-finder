@@ -22,7 +22,8 @@ import {
   Zap,
   Bike,
 } from "lucide-react";
-import { MapView } from "@/components/MapView";
+import { MapView, type MapMarker } from "@/components/MapView";
+import { SharePlaceCard } from "@/components/SharePlaceCard";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -237,6 +238,49 @@ function Index() {
     [selectMutation, rangeKm],
   );
 
+  const selectByIdMutation = useMutation({
+    mutationFn: async ({ placeId, range }: { placeId: string; range: number }) => {
+      const d = userKey
+        ? await getPlaceDetailsWithKey(userKey, placeId)
+        : await doDetails({ data: { placeId } });
+      const n = userKey
+        ? await getNearbyWithKey(userKey, d.lat, d.lng, range)
+        : await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
+      return { d, n };
+    },
+    onSuccess: ({ d, n }) => {
+      setDetails(d);
+      setNearby(n);
+      setLastPlace(d);
+      setCenter({ lat: d.lat, lng: d.lng });
+      setError(null);
+    },
+    onError: () => setError("Could not load details for that spot."),
+  });
+
+  const selectById = useCallback(
+    (placeId: string) => {
+      setResults([]);
+      setDetails(null);
+      setNearby([]);
+      setRoute(null);
+      setSheet("half");
+      setFullMap(false);
+      selectByIdMutation.mutate({ placeId, range: rangeKm });
+    },
+    [selectByIdMutation, rangeKm],
+  );
+
+  // Open a shared link like /?place=<id> straight into that place's details.
+  const openedShared = useRef(false);
+  useEffect(() => {
+    if (openedShared.current) return;
+    const id = new URLSearchParams(window.location.search).get("place");
+    if (!id) return;
+    openedShared.current = true;
+    selectById(id);
+  }, [selectById]);
+
   const changeRange = (km: number) => {
     setRangeKm(km);
     if (lastPlace) {
@@ -245,7 +289,9 @@ function Index() {
     }
   };
 
-  const markers = nearby.flatMap((g) => g.places).slice(0, 30);
+  const markers: MapMarker[] = nearby
+    .flatMap((g) => g.places.map((p) => ({ ...p, kind: g.key })))
+    .slice(0, 40);
 
   return (
     <main className="relative flex h-screen w-full flex-col overflow-hidden bg-background">
@@ -255,6 +301,7 @@ function Index() {
           main={details}
           markers={markers}
           onMarkerClick={(p) => select(p)}
+          onPoiSelect={selectById}
           routePolyline={route?.polyline ?? null}
           threeD={Boolean(details)}
         />
@@ -383,7 +430,7 @@ function Index() {
         </div>
         <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 pb-8">
 
-          {selectMutation.isPending ? (
+          {selectMutation.isPending || selectByIdMutation.isPending ? (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Gathering parking, street food and sights…
             </p>
@@ -465,6 +512,9 @@ function Index() {
                   </span>
                 ) : null}
               </div>
+
+              <SharePlaceCard details={details} nearby={nearby} />
+
 
               {nearby.map((group) => {
                 const Icon = GROUP_ICON[group.key] ?? MapPin;
