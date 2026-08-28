@@ -246,7 +246,9 @@ function Index() {
     }
   };
 
-  const markers = nearby.flatMap((g) => g.places).slice(0, 30);
+  const markers: MapMarker[] = nearby
+    .flatMap((g) => g.places.map((p) => ({ ...p, kind: g.key })))
+    .slice(0, 40);
 
   return (
     <main className="relative flex h-screen w-full flex-col overflow-hidden bg-background">
