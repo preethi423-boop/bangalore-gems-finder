@@ -356,6 +356,7 @@ function Index() {
 
           <div className="mt-2 flex flex-wrap gap-1.5">
             <ApiKeyDialog hasKey={Boolean(userKey)} />
+            <FavoritesSheet onOpenPlace={selectById} version={favVersion} />
             <div
               role="group"
               aria-label="Search range"
