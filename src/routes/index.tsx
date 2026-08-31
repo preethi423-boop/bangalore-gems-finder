@@ -519,6 +519,19 @@ function Index() {
                   )}
                   Route from my location
                 </Button>
+                <Button
+                  size="sm"
+                  variant={saved ? "default" : "outline"}
+                  className="gap-1.5"
+                  aria-pressed={saved}
+                  onClick={() => {
+                    toggleFavorite(details);
+                    setFavVersion((v) => v + 1);
+                  }}
+                >
+                  <Heart className={`size-4 ${saved ? "fill-current" : ""}`} />
+                  {saved ? "Saved" : "Save"}
+                </Button>
                 {route ? (
                   <span className="text-xs text-muted-foreground">
                     {route.distanceText} · about {route.durationText} by car
@@ -527,6 +540,10 @@ function Index() {
               </div>
 
               <SharePlaceCard details={details} nearby={nearby} />
+
+              <PromoStrip placeName={details.name} />
+
+
 
 
               {nearby.map((group) => {
