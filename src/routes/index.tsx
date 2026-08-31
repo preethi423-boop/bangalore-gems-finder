@@ -25,10 +25,14 @@ import {
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
+import { FavoritesSheet } from "@/components/FavoritesSheet";
+import { PromoStrip } from "@/components/PromoStrip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getUserKey } from "@/lib/user-key";
+import { isFavorite, toggleFavorite } from "@/lib/favorites";
+
 import {
   searchPlacesWithKey,
   getPlaceDetailsWithKey,
