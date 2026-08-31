@@ -21,6 +21,7 @@ import {
   Minimize2,
   Zap,
   Bike,
+  Heart,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
