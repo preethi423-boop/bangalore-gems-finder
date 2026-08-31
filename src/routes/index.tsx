@@ -21,14 +21,19 @@ import {
   Minimize2,
   Zap,
   Bike,
+  Heart,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
+import { FavoritesSheet } from "@/components/FavoritesSheet";
+import { PromoStrip } from "@/components/PromoStrip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getUserKey } from "@/lib/user-key";
+import { isFavorite, toggleFavorite } from "@/lib/favorites";
+
 import {
   searchPlacesWithKey,
   getPlaceDetailsWithKey,
@@ -130,7 +135,14 @@ function Index() {
   const [lastPlace, setLastPlace] = useState<PlaceLite | null>(null);
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
   const [fullMap, setFullMap] = useState(false);
+  const [favVersion, setFavVersion] = useState(0);
+  const [saved, setSaved] = useState(false);
   const dragStart = useRef<{ y: number; snap: typeof sheet } | null>(null);
+
+  useEffect(() => {
+    setSaved(details ? isFavorite(details.id) : false);
+  }, [details, favVersion]);
+
 
   const SHEET_H: Record<"peek" | "half" | "full", string> = {
     peek: "16vh",
@@ -344,6 +356,7 @@ function Index() {
 
           <div className="mt-2 flex flex-wrap gap-1.5">
             <ApiKeyDialog hasKey={Boolean(userKey)} />
+            <FavoritesSheet onOpenPlace={selectById} version={favVersion} />
             <div
               role="group"
               aria-label="Search range"
@@ -506,6 +519,19 @@ function Index() {
                   )}
                   Route from my location
                 </Button>
+                <Button
+                  size="sm"
+                  variant={saved ? "default" : "outline"}
+                  className="gap-1.5"
+                  aria-pressed={saved}
+                  onClick={() => {
+                    toggleFavorite(details);
+                    setFavVersion((v) => v + 1);
+                  }}
+                >
+                  <Heart className={`size-4 ${saved ? "fill-current" : ""}`} />
+                  {saved ? "Saved" : "Save"}
+                </Button>
                 {route ? (
                   <span className="text-xs text-muted-foreground">
                     {route.distanceText} · about {route.durationText} by car
@@ -514,6 +540,10 @@ function Index() {
               </div>
 
               <SharePlaceCard details={details} nearby={nearby} />
+
+              <PromoStrip placeName={details.name} />
+
+
 
 
               {nearby.map((group) => {
