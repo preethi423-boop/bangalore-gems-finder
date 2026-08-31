@@ -135,7 +135,14 @@ function Index() {
   const [lastPlace, setLastPlace] = useState<PlaceLite | null>(null);
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
   const [fullMap, setFullMap] = useState(false);
+  const [favVersion, setFavVersion] = useState(0);
+  const [saved, setSaved] = useState(false);
   const dragStart = useRef<{ y: number; snap: typeof sheet } | null>(null);
+
+  useEffect(() => {
+    setSaved(details ? isFavorite(details.id) : false);
+  }, [details, favVersion]);
+
 
   const SHEET_H: Record<"peek" | "half" | "full", string> = {
     peek: "16vh",
