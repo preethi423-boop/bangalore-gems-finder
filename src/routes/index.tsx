@@ -356,6 +356,13 @@ function Index() {
 
           <div className="mt-2 flex flex-wrap gap-1.5">
             <ApiKeyDialog hasKey={Boolean(userKey)} />
+            <Link
+              to={session ? "/admin" : "/auth"}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
+            >
+              <LogIn className="size-3.5" />
+              {session ? (isAdmin ? "Manage ads" : "My account") : "Admin login"}
+            </Link>
             <FavoritesSheet onOpenPlace={selectById} version={favVersion} />
             <div
               role="group"
