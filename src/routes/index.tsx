@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,6 +22,7 @@ import {
   Zap,
   Bike,
   Heart,
+  LogIn,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
@@ -33,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getUserKey } from "@/lib/user-key";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
+import { useAuth } from "@/hooks/useAuth";
 
 import {
   searchPlacesWithKey,
@@ -123,6 +125,7 @@ function PlaceCard({ p, onClick }: { p: PlaceLite; onClick: () => void }) {
 }
 
 function Index() {
+  const { session, isAdmin } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceLite[]>([]);
   const [details, setDetails] = useState<PlaceDetails | null>(null);
@@ -356,6 +359,13 @@ function Index() {
 
           <div className="mt-2 flex flex-wrap gap-1.5">
             <ApiKeyDialog hasKey={Boolean(userKey)} />
+            <Link
+              to={session ? "/admin" : "/auth"}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
+            >
+              <LogIn className="size-3.5" />
+              {session ? (isAdmin ? "Manage ads" : "My account") : "Admin login"}
+            </Link>
             <FavoritesSheet onOpenPlace={selectById} version={favVersion} />
             <div
               role="group"
