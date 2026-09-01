@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getUserKey } from "@/lib/user-key";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
+import { useAuth } from "@/hooks/useAuth";
 
 import {
   searchPlacesWithKey,
@@ -124,6 +125,7 @@ function PlaceCard({ p, onClick }: { p: PlaceLite; onClick: () => void }) {
 }
 
 function Index() {
+  const { session, isAdmin } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceLite[]>([]);
   const [details, setDetails] = useState<PlaceDetails | null>(null);
