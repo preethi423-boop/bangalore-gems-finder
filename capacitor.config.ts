@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   server: {
     // The app shell is server-rendered, so the Android wrapper loads the hosted site.
     // Replace this with your own published URL after you publish the project.
-    url: "https://id-preview--8b5b15be-81d7-4bd8-91c0-a06d2323d126.lovable.app",
+    url: "https://bangalore-gems-finder.lovable.app",
     cleartext: false,
   },
   android: {
