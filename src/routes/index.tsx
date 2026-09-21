@@ -23,6 +23,10 @@ import {
   Bike,
   Heart,
   LogIn,
+  CircleParking,
+  CircleCheck,
+  CircleHelp,
+  CircleX,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
@@ -485,6 +489,37 @@ function Index() {
               {details.summary ? (
                 <p className="mt-2 text-sm text-foreground/90">{details.summary}</p>
               ) : null}
+
+              <div className="mt-3 rounded-lg border border-border bg-background p-3">
+                <div className="flex items-start gap-2.5">
+                  <CircleParking className="mt-0.5 size-5 shrink-0 text-primary" />
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-sm font-semibold">
+                      {details.parkingStatus === "available" ? (
+                        <CircleCheck className="size-4 text-primary" />
+                      ) : details.parkingStatus === "not_available" ? (
+                        <CircleX className="size-4 text-destructive" />
+                      ) : (
+                        <CircleHelp className="size-4 text-muted-foreground" />
+                      )}
+                      {details.parkingStatus === "available"
+                        ? "Parking available at this place"
+                        : details.parkingStatus === "not_available"
+                          ? "No on-site parking listed"
+                          : "On-site parking information unavailable"}
+                    </p>
+                    {details.parkingTypes.length ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {details.parkingTypes.join(" · ")}
+                      </p>
+                    ) : details.parkingStatus === "unknown" ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Check the nearby Parking section below for other options.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
 
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 {details.primaryType ? <Badge variant="secondary">{details.primaryType}</Badge> : null}
