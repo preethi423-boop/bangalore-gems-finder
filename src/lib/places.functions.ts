@@ -28,6 +28,8 @@ export type PlaceDetails = PlaceLite & {
   mapsUri?: string;
   reviews: PlaceReview[];
   wheelchair?: boolean;
+  parkingStatus: "available" | "not_available" | "unknown";
+  parkingTypes: string[];
   hours: string[];
 };
 
@@ -78,6 +80,29 @@ function toLite(p: any): PlaceLite {
   };
 }
 
+const PARKING_LABELS: Record<string, string> = {
+  freeParkingLot: "Free parking lot",
+  paidParkingLot: "Paid parking lot",
+  freeStreetParking: "Free street parking",
+  paidStreetParking: "Paid street parking",
+  valetParking: "Valet parking",
+  freeGarageParking: "Free parking garage",
+  paidGarageParking: "Paid parking garage",
+};
+
+function getParkingDetails(parkingOptions: Record<string, boolean> | undefined) {
+  if (!parkingOptions) {
+    return { parkingStatus: "unknown" as const, parkingTypes: [] as string[] };
+  }
+  const parkingTypes = Object.entries(parkingOptions)
+    .filter(([, available]) => available)
+    .map(([key]) => PARKING_LABELS[key] ?? key);
+  return {
+    parkingStatus: parkingTypes.length ? ("available" as const) : ("not_available" as const),
+    parkingTypes,
+  };
+}
+
 const LITE_MASK =
   "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.primaryTypeDisplayName";
 
@@ -102,7 +127,7 @@ export const getPlaceDetails = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data }): Promise<PlaceDetails> => {
     const mask =
-      "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,accessibilityOptions,regularOpeningHours";
+      "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,accessibilityOptions,parkingOptions,regularOpeningHours";
     const res = await fetch(`${GATEWAY}/places/v1/places/${encodeURIComponent(data.placeId)}`, {
       headers: buildHeaders(mask),
     });
@@ -119,6 +144,7 @@ export const getPlaceDetails = createServerFn({ method: "POST" })
       website: p.websiteUri,
       mapsUri: p.googleMapsUri,
       wheelchair: p.accessibilityOptions?.wheelchairAccessibleEntrance,
+      ...getParkingDetails(p.parkingOptions),
       hours: p.regularOpeningHours?.weekdayDescriptions ?? [],
       reviews: (p.reviews ?? []).slice(0, 6).map((r: any) => ({
         author: r.authorAttribution?.displayName ?? "Google user",

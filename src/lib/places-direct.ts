@@ -9,6 +9,29 @@ export const LITE_MASK =
 
 const BLR = { latitude: 12.9716, longitude: 77.5946 };
 
+const PARKING_LABELS: Record<string, string> = {
+  freeParkingLot: "Free parking lot",
+  paidParkingLot: "Paid parking lot",
+  freeStreetParking: "Free street parking",
+  paidStreetParking: "Paid street parking",
+  valetParking: "Valet parking",
+  freeGarageParking: "Free parking garage",
+  paidGarageParking: "Paid parking garage",
+};
+
+function getParkingDetails(parkingOptions: Record<string, boolean> | undefined) {
+  if (!parkingOptions) {
+    return { parkingStatus: "unknown" as const, parkingTypes: [] as string[] };
+  }
+  const parkingTypes = Object.entries(parkingOptions)
+    .filter(([, available]) => available)
+    .map(([key]) => PARKING_LABELS[key] ?? key);
+  return {
+    parkingStatus: parkingTypes.length ? ("available" as const) : ("not_available" as const),
+    parkingTypes,
+  };
+}
+
 export const CATEGORIES = [
   { key: "parking", label: "Parking", query: "parking lot", radius: 5000 },
   { key: "streetfood", label: "Street food", query: "street food stall chaat darshini", radius: 1200 },
@@ -68,7 +91,7 @@ export async function searchPlacesWithKey(key: string, query: string): Promise<P
 
 export async function getPlaceDetailsWithKey(key: string, placeId: string): Promise<PlaceDetails> {
   const mask =
-    "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,accessibilityOptions,regularOpeningHours";
+    "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,accessibilityOptions,parkingOptions,regularOpeningHours";
   const p: any = await call(`${PLACES}/places/${encodeURIComponent(placeId)}`, key, mask);
   return {
     ...toLite(p),
@@ -77,6 +100,7 @@ export async function getPlaceDetailsWithKey(key: string, placeId: string): Prom
     website: p.websiteUri,
     mapsUri: p.googleMapsUri,
     wheelchair: p.accessibilityOptions?.wheelchairAccessibleEntrance,
+    ...getParkingDetails(p.parkingOptions),
     hours: p.regularOpeningHours?.weekdayDescriptions ?? [],
     reviews: (p.reviews ?? []).slice(0, 6).map((r: any) => ({
       author: r.authorAttribution?.displayName ?? "Google user",
