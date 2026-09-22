@@ -27,6 +27,7 @@ import {
   CircleCheck,
   CircleHelp,
   CircleX,
+  IndianRupee,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
@@ -577,12 +578,19 @@ function Index() {
                   <Heart className={`size-4 ${saved ? "fill-current" : ""}`} />
                   {saved ? "Saved" : "Save"}
                 </Button>
-                {route ? (
-                  <span className="text-xs text-muted-foreground">
-                    {route.distanceText} · about {route.durationText} by car
-                  </span>
-                ) : null}
               </div>
+
+              {route ? (
+                <div className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-lg border border-border bg-secondary/60 p-3">
+                  <IndianRupee className="row-span-2 mt-0.5 size-5 text-primary" />
+                  <p className="text-sm font-semibold">
+                    Approximate cab cost: {route.fareEstimateText}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {route.distanceText} · about {route.durationText} by car. Actual fare may vary with demand, waiting, tolls, and cab type.
+                  </p>
+                </div>
+              ) : null}
 
               <SharePlaceCard details={details} nearby={nearby} />
 

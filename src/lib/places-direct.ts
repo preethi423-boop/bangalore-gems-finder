@@ -140,8 +140,20 @@ export async function getNearbyWithKey(
 export type RouteResult = {
   distanceText: string;
   durationText: string;
+  fareEstimateText: string;
   polyline: string;
 };
+
+function estimateCabFare(distanceMeters: number) {
+  const distanceKm = distanceMeters / 1000;
+  const baseFare = 75;
+  const includedKm = 2;
+  const perKm = 18;
+  const estimated = baseFare + Math.max(0, distanceKm - includedKm) * perKm;
+  const low = Math.max(baseFare, Math.round((estimated * 0.9) / 10) * 10);
+  const high = Math.max(low + 20, Math.round((estimated * 1.2) / 10) * 10);
+  return `₹${low.toLocaleString("en-IN")}–₹${high.toLocaleString("en-IN")}`;
+}
 
 export async function computeRouteWithKey(
   key: string,
@@ -174,6 +186,7 @@ export async function computeRouteWithKey(
       seconds >= 3600
         ? `${Math.floor(seconds / 3600)} hr ${Math.round((seconds % 3600) / 60)} min`
         : `${Math.max(1, Math.round(seconds / 60))} min`,
+    fareEstimateText: estimateCabFare(meters),
     polyline: route.polyline?.encodedPolyline ?? "",
   };
 }
