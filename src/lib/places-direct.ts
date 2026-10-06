@@ -140,19 +140,33 @@ export async function getNearbyWithKey(
 export type RouteResult = {
   distanceText: string;
   durationText: string;
-  fareEstimateText: string;
+  fareEstimates: Array<{
+    type: "Auto" | "Mini" | "Sedan" | "SUV";
+    estimateText: string;
+  }>;
   polyline: string;
 };
 
-function estimateCabFare(distanceMeters: number) {
+function estimateFareRange(
+  distanceMeters: number,
+  baseFare: number,
+  includedKm: number,
+  perKm: number,
+) {
   const distanceKm = distanceMeters / 1000;
-  const baseFare = 75;
-  const includedKm = 2;
-  const perKm = 18;
   const estimated = baseFare + Math.max(0, distanceKm - includedKm) * perKm;
   const low = Math.max(baseFare, Math.round((estimated * 0.9) / 10) * 10);
   const high = Math.max(low + 20, Math.round((estimated * 1.2) / 10) * 10);
   return `₹${low.toLocaleString("en-IN")}–₹${high.toLocaleString("en-IN")}`;
+}
+
+function estimateCabFares(distanceMeters: number): RouteResult["fareEstimates"] {
+  return [
+    { type: "Auto", estimateText: estimateFareRange(distanceMeters, 35, 2, 15) },
+    { type: "Mini", estimateText: estimateFareRange(distanceMeters, 75, 2, 18) },
+    { type: "Sedan", estimateText: estimateFareRange(distanceMeters, 100, 2, 22) },
+    { type: "SUV", estimateText: estimateFareRange(distanceMeters, 150, 2, 28) },
+  ];
 }
 
 export async function computeRouteWithKey(
@@ -186,7 +200,7 @@ export async function computeRouteWithKey(
       seconds >= 3600
         ? `${Math.floor(seconds / 3600)} hr ${Math.round((seconds % 3600) / 60)} min`
         : `${Math.max(1, Math.round(seconds / 60))} min`,
-    fareEstimateText: estimateCabFare(meters),
+    fareEstimates: estimateCabFares(meters),
     polyline: route.polyline?.encodedPolyline ?? "",
   };
 }
