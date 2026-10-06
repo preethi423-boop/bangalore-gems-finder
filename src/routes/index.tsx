@@ -28,6 +28,8 @@ import {
   CircleHelp,
   CircleX,
   IndianRupee,
+  Clock3,
+  Route as RouteIcon,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
@@ -581,13 +583,35 @@ function Index() {
               </div>
 
               {route ? (
-                <div className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-lg border border-border bg-secondary/60 p-3">
-                  <IndianRupee className="row-span-2 mt-0.5 size-5 text-primary" />
-                  <p className="text-sm font-semibold">
-                    Approximate cab cost: {route.fareEstimateText}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {route.distanceText} · about {route.durationText} by car. Actual fare may vary with demand, waiting, tolls, and cab type.
+                <div className="mt-3 rounded-lg border border-border bg-secondary/60 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold">Travel options</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">From your current location</p>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-medium text-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <RouteIcon className="size-3.5 text-primary" /> {route.distanceText}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Clock3 className="size-3.5 text-primary" /> {route.durationText}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {route.fareEstimates.map((fare) => (
+                      <div key={fare.type} className="rounded-md border border-border bg-card px-3 py-2">
+                        <p className="text-xs text-muted-foreground">{fare.type}</p>
+                        <p className="mt-1 flex items-center gap-0.5 text-sm font-semibold">
+                          <IndianRupee className="size-3.5 text-primary" aria-hidden="true" />
+                          <span className="sr-only">Estimated fare:</span>
+                          {fare.estimateText.replace("₹", "").replace("–₹", "–")}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    Estimated fares only. Actual prices may vary with demand, waiting, tolls, and provider pricing.
                   </p>
                 </div>
               ) : null}
