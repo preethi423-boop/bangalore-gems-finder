@@ -8,15 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/auth")({
+  validateSearch: (search: Record<string, unknown>) => ({ returnTo: search.returnTo === "/" ? "/" : undefined, place: typeof search.place === "string" ? search.place.slice(0, 200) : undefined }),
   head: () => ({
     meta: [
-      { title: "Sign in — Namma Spot admin" },
+      { title: "Sign in — Namma Spot" },
       {
         name: "description",
         content:
           "Sign in to Namma Spot to manage sponsored offers and promotions shown alongside Bengaluru places.",
       },
-      { property: "og:title", content: "Sign in — Namma Spot admin" },
+      { property: "og:title", content: "Sign in — Namma Spot" },
       {
         property: "og:description",
         content: "Sign in to Namma Spot to manage sponsored offers and promotions.",
@@ -29,7 +30,9 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
+  const { returnTo, place } = Route.useSearch();
   const navigate = useNavigate();
+  const destination = returnTo === "/" ? `/${place ? `?place=${encodeURIComponent(place)}` : ""}` : "/admin";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,9 +41,9 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/admin", replace: true });
+      if (data.session) window.location.assign(destination);
     });
-  }, [navigate]);
+  }, [destination]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +65,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-      navigate({ to: "/admin", replace: true });
+      window.location.assign(destination);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -73,14 +76,14 @@ function AuthPage() {
   const google = async () => {
     setMessage(null);
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: `${window.location.origin}${returnTo === "/" ? destination : "/"}`,
     });
     if (result.error) {
       setMessage("Google sign-in failed. Please try again.");
       return;
     }
     if (result.redirected) return;
-    navigate({ to: "/admin", replace: true });
+    window.location.assign(destination);
   };
 
   return (

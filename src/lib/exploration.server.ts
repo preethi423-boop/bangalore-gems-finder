@@ -66,6 +66,7 @@ export async function handleExploration(request: Request) {
   }, [{ role: "user", content: JSON.stringify({ interests: input.prompt, location: input.location, candidates }) }], INSTRUCTIONS);
   const iterator = call.result.fullStream[Symbol.asyncIterator]();
   const first = await iterator.next();
+  await call.waitForUpstream();
   if (upstreamError) return jsonError(upstreamError.message, upstreamError.status, upstreamError.paused);
   if (request.signal.aborted) return jsonError("Recommendations stopped.", 499);
   const encoder = new TextEncoder();
@@ -99,5 +100,5 @@ export async function handleExploration(request: Request) {
   const response = new Response(stream, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache, no-store, no-transform" } });
   // Only gateway correlation metadata is forwarded; no credentials leave the server.
   const { withLovableAiGatewayRunIdHeader } = await import("./ai/run-id.server.ts");
-  return withLovableAiGatewayRunIdHeader(response, { getRunId: () => undefined, waitForRunId: async () => undefined });
+  return withLovableAiGatewayRunIdHeader(response, call.gateway);
 }

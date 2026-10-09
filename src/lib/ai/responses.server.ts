@@ -14,15 +14,19 @@ export function createResponsesCall(
   messages: ModelMessage[],
   instructions?: string,
 ) {
+  let ready: () => void = () => {};
+  const upstreamReady = new Promise<void>(resolve => { ready = resolve; });
   const runIdFetch = createLovableAiGatewayRunIdFetch(getLovableAiGatewayRunId(request));
   const provider = createOpenAI({
     baseURL: `${config.baseURL.replace(/\/+$/, "").replace(/\/v1$/, "")}/v1`,
     apiKey: config.apiKey,
     headers: { "Lovable-API-Key": config.apiKey, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
     fetch: async (input, init) => {
-      const response = await runIdFetch.fetch(input, init);
-      await config.observeResponse?.(response);
-      return response;
+      try {
+        const response = await runIdFetch.fetch(input, init);
+        await config.observeResponse?.(response);
+        return response;
+      } finally { ready(); }
     },
   });
   const reasoning = config.model !== "openai/chat-latest";
@@ -49,6 +53,8 @@ export function createResponsesCall(
   });
   return {
     result,
+    gateway: runIdFetch,
+    waitForUpstream: () => upstreamReady,
     response: () =>
       withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({ sendReasoning: true }), runIdFetch),
   };
