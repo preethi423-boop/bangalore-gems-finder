@@ -95,7 +95,7 @@ export async function handleExploration(request: Request) {
         send(request.signal.aborted ? { type: "stopped" } : { type: "error", message: upstreamError?.message ?? "The AI could not complete recommendations. No places were suggested.", paused: upstreamError?.paused ?? false });
       } finally { controller.close(); }
     },
-    cancel: () => iterator.return?.(),
+    cancel: async () => { await iterator.return?.(); },
   });
   const response = new Response(stream, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache, no-store, no-transform" } });
   // Only gateway correlation metadata is forwarded; no credentials leave the server.

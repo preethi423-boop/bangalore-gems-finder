@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>) => ({ returnTo: search.returnTo === "/" ? "/" : undefined, place: typeof search.place === "string" ? search.place.slice(0, 200) : undefined }),
+  validateSearch: (search: Record<string, unknown>): { returnTo?: string; place?: string } => ({ returnTo: search.returnTo === "/" ? "/" : undefined, place: typeof search.place === "string" ? search.place.slice(0, 200) : undefined }),
   head: () => ({
     meta: [
       { title: "Sign in — Namma Spot" },
