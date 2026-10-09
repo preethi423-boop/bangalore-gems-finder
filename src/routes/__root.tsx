@@ -6,6 +6,7 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -34,7 +35,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
@@ -87,8 +88,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Namma Spot — Explore Bengaluru places, parking & street food" },
       { name: "twitter:description", content: "Search any place in and around Bengaluru to see ratings, reviews, nearby parking, street food stalls, shopping and must-see spots on one map." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/69287580-4b0d-4d6e-a555-fdef11379c7f/id-preview-6946018c--8b5b15be-81d7-4bd8-91c0-a06d2323d126.lovable.app-1785396217420.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/69287580-4b0d-4d6e-a555-fdef11379c7f/id-preview-6946018c--8b5b15be-81d7-4bd8-91c0-a06d2323d126.lovable.app-1785396217420.png" },
     ],
     links: [
       {
