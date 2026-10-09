@@ -36,6 +36,7 @@ import { SharePlaceCard } from "@/components/SharePlaceCard";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { FavoritesSheet } from "@/components/FavoritesSheet";
 import { PromoStrip } from "@/components/PromoStrip";
+import { ExploreNearby } from "@/components/ExploreNearby";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -615,6 +616,8 @@ function Index() {
                   </p>
                 </div>
               ) : null}
+
+              <ExploreNearby key={`${details.id}-${rangeKm}`} details={details} nearby={nearby} rangeKm={rangeKm} session={session} isAdmin={isAdmin} onSelect={selectById} />
 
               <SharePlaceCard details={details} nearby={nearby} />
 
