@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_exploration_state: {
+        Row: {
+          id: string
+          message: string
+          status_code: number
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          message: string
+          status_code: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          message?: string
+          status_code?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
