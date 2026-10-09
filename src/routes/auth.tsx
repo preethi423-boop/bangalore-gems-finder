@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Loader2, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,7 +31,6 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const { returnTo, place } = Route.useSearch();
-  const navigate = useNavigate();
   const destination = returnTo === "/" ? `/${place ? `?place=${encodeURIComponent(place)}` : ""}` : "/admin";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");

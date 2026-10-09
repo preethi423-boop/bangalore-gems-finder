@@ -77,7 +77,7 @@ export function ExploreNearby({ details, nearby, rangeKm, session, isAdmin, onSe
     <section className="mt-5 border-y border-border py-4" aria-labelledby="explore-title">
       <div className="flex items-center justify-between gap-2">
         <h3 id="explore-title" className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="size-4 text-accent" />Explore your way</h3>
-        <span className="text-xs text-muted-foreground">Near {details.name}</span>
+        <span className="min-w-0 max-w-[50%] break-words text-right text-xs text-muted-foreground">Near {details.name}</span>
       </div>
       <form className="mt-3" onSubmit={e => { e.preventDefault(); void recommend(); }}>
         <label htmlFor="explore-interests" className="text-xs font-medium">What would you like to explore?</label>
