@@ -34,7 +34,7 @@ function getParkingDetails(parkingOptions: Record<string, boolean> | undefined) 
 
 export const CATEGORIES = [
   { key: "parking", label: "Parking", query: "parking lot", radius: 5000 },
-  { key: "streetfood", label: "Street food", query: "street food stall chaat darshini", radius: 1200 },
+  { key: "streetfood", label: "Street food", query: "street food", radius: 1200 },
   { key: "shopping", label: "Shopping", query: "shopping market mall", radius: 2000 },
   { key: "sights", label: "Must see", query: "tourist attraction landmark viewpoint", radius: 5000 },
   { key: "cafes", label: "Cafes & eats", query: "cafe restaurant", radius: 1200 },
@@ -131,7 +131,7 @@ export async function getNearbyWithKey(
         });
         return { key: c.key, label: c.label, places: (json.places ?? []).map(toLite) };
       } catch {
-        return { key: c.key, label: c.label, places: [] as PlaceLite[] };
+        return { key: c.key, label: c.label, places: [] as PlaceLite[], error: "Could not refresh these places. Please try again." };
       }
     }),
   );
