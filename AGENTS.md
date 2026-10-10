@@ -18,4 +18,3 @@
 - Do not activate purchase controls or grant paid access until a real payment provider verifies purchases; Play Store and UPI setup is pending and displayed as unavailable.
 - Admin draft previews share subscription plan rendering with the visitor page and never write settings until Save; preserve unsaved drafts during background refreshes.
 - Prebundle lazy admin tabs alongside React to prevent mixed dependency generations during development.
-- Await the Maps library and confirm its container is connected before map construction; cancel delayed initialization and remove listeners on unmount to keep navigation safe.
