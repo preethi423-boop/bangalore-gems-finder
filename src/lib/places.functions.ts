@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireSubscriptionAccess } from "./subscription.server";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_maps";
 
@@ -112,6 +113,7 @@ const BLR = { latitude: 12.9716, longitude: 77.5946 };
 export const searchPlaces = createServerFn({ method: "POST" })
   .inputValidator((data: { query: string }) => ({ query: String(data.query ?? "").slice(0, 120) }))
   .handler(async ({ data }): Promise<PlaceLite[]> => {
+    await requireSubscriptionAccess();
     if (!data.query.trim()) return [];
     const json = await gateway("/places/v1/places:searchText", LITE_MASK, {
       textQuery: data.query,
@@ -127,6 +129,7 @@ export const getPlaceDetails = createServerFn({ method: "POST" })
     placeId: String(data.placeId ?? "").slice(0, 200),
   }))
   .handler(async ({ data }): Promise<PlaceDetails> => {
+    await requireSubscriptionAccess();
     const mask =
       "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,accessibilityOptions,parkingOptions,regularOpeningHours";
     const res = await fetch(`${GATEWAY}/places/v1/places/${encodeURIComponent(data.placeId)}`, {
@@ -178,6 +181,7 @@ export const getNearby = createServerFn({ method: "POST" })
     rangeKm: Number(data.rangeKm) > 0 ? Number(data.rangeKm) : 5,
   }))
   .handler(async ({ data }): Promise<NearbyGroup[]> => {
+    await requireSubscriptionAccess();
     const center = { latitude: data.lat, longitude: data.lng };
     const scale = data.rangeKm / 5;
     return Promise.all(

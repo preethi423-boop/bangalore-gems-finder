@@ -25,6 +25,9 @@ export async function handleExploration(request: Request) {
   } });
   const { data: auth, error: authError } = await userClient.auth.getUser(token);
   if (authError || !auth.user) return jsonError("Your session has expired. Please sign in again.", 401);
+  const { data: allowed, error: accessError } = await userClient.rpc("can_use_subscription_app");
+  if (accessError) return jsonError("Could not check subscription access.", 503);
+  if (allowed !== true) return jsonError("Start your free trial or subscribe to continue.", 403);
   if (Number(request.headers.get("content-length")) > 60000) return jsonError("Too much place data. Choose fewer places.", 400);
   let body: unknown;
   try { const text = await request.text(); if (text.length > 60000) return jsonError("Too much place data.", 400); body = JSON.parse(text); }

@@ -8,17 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { SubscriptionAdmin } from "@/components/SubscriptionAdmin";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
     meta: [
-      { title: "Promotions admin — Namma Spot" },
+      { title: "Access & promotions admin — Namma Spot" },
       {
         name: "description",
         content:
           "Admin area for Namma Spot: create, edit and retire the sponsored offers and product promotions shown next to Bengaluru places.",
       },
-      { property: "og:title", content: "Promotions admin — Namma Spot" },
+      { property: "og:title", content: "Access & promotions admin — Namma Spot" },
       {
         property: "og:description",
         content: "Manage sponsored offers and product promotions shown in Namma Spot.",
@@ -139,7 +140,7 @@ function AdminPage() {
       <div className="mx-auto w-full max-w-2xl">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-lg font-semibold">Offers &amp; promotions</h1>
+            <h1 className="text-lg font-semibold">Site administration</h1>
             <p className="text-sm text-muted-foreground">
               These appear in the sponsored strip under every place.
             </p>
@@ -155,6 +156,8 @@ function AdminPage() {
             </Button>
           </div>
         </div>
+
+        {user ? <SubscriptionAdmin userId={user.id} /> : null}
 
         <form
           onSubmit={(e) => {
