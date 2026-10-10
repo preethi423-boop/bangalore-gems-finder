@@ -1,4 +1,6 @@
 # Nearby AI exploration
+- [ ] Add monthly/yearly access and admin-controlled free mode; waiting for pricing, trial duration, and payment setup confirmation.
+- [ ] Connect Google Play/UPI payments and verify purchases; waiting for payment eligibility and required store configuration.
 - [x] Fix sponsored-offer refresh, street-food failures and previous-search navigation; verified with sample service responses and six passing tests.
 - [x] Add grounded recommendations and safe streaming AI access.
 - [x] Add selected-place prompt, recommendation links, Stop and error states.
