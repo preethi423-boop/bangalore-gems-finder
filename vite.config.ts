@@ -11,7 +11,7 @@ export default defineConfig({
     optimizeDeps: {
       // Prebundle lazy dashboard controls with React so opening the dashboard
       // cannot replace the dependency generation in an already-running page.
-      include: ["react", "react-dom", "react-dom/client", "@radix-ui/react-tabs"],
+      include: ["react", "react-dom", "react-dom/client", "@radix-ui/react-tabs", "@radix-ui/react-dropdown-menu", "qrcode"],
     },
   },
   tanstackStart: {
