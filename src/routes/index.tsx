@@ -30,6 +30,8 @@ import {
   IndianRupee,
   Clock3,
   Route as RouteIcon,
+  ArrowLeft,
+  RefreshCw,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
@@ -97,6 +99,12 @@ const GROUP_ICON: Record<string, typeof Car> = {
 const QUICK = ["Lalbagh", "MG Road", "Nandi Hills", "VV Puram Food Street", "Cubbon Park"];
 const RANGES: number[] = [5, 10, 25];
 
+type MapSnapshot = {
+  query: string; results: PlaceLite[]; details: PlaceDetails | null; nearby: NearbyGroup[];
+  center: typeof BLR; route: RouteResult | null; rangeKm: number; lastPlace: PlaceLite | null;
+  sheet: "peek" | "half" | "full"; fullMap: boolean; depth: number;
+};
+
 function Stars({ rating }: { rating?: number }) {
   if (!rating) return null;
   return (
@@ -148,6 +156,10 @@ function Index() {
   const [fullMap, setFullMap] = useState(false);
   const [favVersion, setFavVersion] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [depth, setDepth] = useState(0);
+  const requestVersion = useRef(0);
+  const searchVersion = useRef(0);
+  const snapshot = useRef<MapSnapshot | null>(null);
   const dragStart = useRef<{ y: number; snap: typeof sheet } | null>(null);
 
   useEffect(() => {
@@ -180,17 +192,19 @@ function Index() {
   const doNearby = useServerFn(getNearby);
 
   const searchMutation = useMutation({
-    mutationFn: (q: string) =>
-      userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } }),
-    onSuccess: (data) => {
+    mutationFn: async ({ q, version }: { q: string; version: number }) => ({
+      data: await (userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } })), version,
+    }),
+    onSuccess: ({ data, version }) => {
+      if (version !== searchVersion.current) return;
       setResults(data);
       setError(data.length ? null : "No places found. Try another name.");
     },
-    onError: () => setError("Could not search right now. Please try again."),
+    onError: (_, { version }) => { if (version === searchVersion.current) setError("Could not search right now. Please try again."); },
   });
 
   const selectMutation = useMutation({
-    mutationFn: async ({ place, range }: { place: PlaceLite; range: number }) => {
+    mutationFn: async ({ place, range, version }: { place: PlaceLite; range: number; version: number }) => {
       const [d, n] = await Promise.all([
         userKey
           ? getPlaceDetailsWithKey(userKey, place.id)
@@ -199,15 +213,16 @@ function Index() {
           ? getNearbyWithKey(userKey, place.lat, place.lng, range)
           : doNearby({ data: { lat: place.lat, lng: place.lng, rangeKm: range } }),
       ]);
-      return { d, n };
+      return { d, n, version };
     },
-    onSuccess: ({ d, n }) => {
+    onSuccess: ({ d, n, version }) => {
+      if (version !== requestVersion.current) return;
       setDetails(d);
       setNearby(n);
       setCenter({ lat: d.lat, lng: d.lng });
       setError(null);
     },
-    onError: () => setError("Could not load this place's details."),
+    onError: (_, { version }) => { if (version === requestVersion.current) setError("Could not load this place's details."); },
   });
 
   const routeMutation = useMutation({
@@ -243,11 +258,22 @@ function Index() {
     if (!value) return;
     setQuery(value);
     setResults([]);
-    searchMutation.mutate(value);
+    searchMutation.mutate({ q: value, version: ++searchVersion.current });
+  };
+
+  const pushPlace = (id: string) => {
+    if (snapshot.current) window.history.replaceState({ ...window.history.state, nammaSpot: snapshot.current }, "");
+    const url = new URL(window.location.href);
+    url.searchParams.set("place", id);
+    window.history.pushState({ ...window.history.state, nammaSpot: null }, "", url);
+    setDepth(d => d + 1);
+    ++searchVersion.current;
+    searchMutation.reset();
   };
 
   const select = useCallback(
     (p: PlaceLite) => {
+      pushPlace(p.id);
       setResults([]);
       setDetails(null);
       setNearby([]);
@@ -256,40 +282,42 @@ function Index() {
       setCenter({ lat: p.lat, lng: p.lng });
       setSheet("peek");
       setFullMap(false);
-      selectMutation.mutate({ place: p, range: rangeKm });
+      selectMutation.mutate({ place: p, range: rangeKm, version: ++requestVersion.current });
     },
     [selectMutation, rangeKm],
   );
 
   const selectByIdMutation = useMutation({
-    mutationFn: async ({ placeId, range }: { placeId: string; range: number }) => {
+    mutationFn: async ({ placeId, range, version }: { placeId: string; range: number; version: number }) => {
       const d = userKey
         ? await getPlaceDetailsWithKey(userKey, placeId)
         : await doDetails({ data: { placeId } });
       const n = userKey
         ? await getNearbyWithKey(userKey, d.lat, d.lng, range)
         : await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
-      return { d, n };
+      return { d, n, version };
     },
-    onSuccess: ({ d, n }) => {
+    onSuccess: ({ d, n, version }) => {
+      if (version !== requestVersion.current) return;
       setDetails(d);
       setNearby(n);
       setLastPlace(d);
       setCenter({ lat: d.lat, lng: d.lng });
       setError(null);
     },
-    onError: () => setError("Could not load details for that spot."),
+    onError: (_, { version }) => { if (version === requestVersion.current) setError("Could not load details for that spot."); },
   });
 
   const selectById = useCallback(
     (placeId: string) => {
+      pushPlace(placeId);
       setResults([]);
       setDetails(null);
       setNearby([]);
       setRoute(null);
       setSheet("half");
       setFullMap(false);
-      selectByIdMutation.mutate({ placeId, range: rangeKm });
+      selectByIdMutation.mutate({ placeId, range: rangeKm, version: ++requestVersion.current });
     },
     [selectByIdMutation, rangeKm],
   );
@@ -308,9 +336,28 @@ function Index() {
     setRangeKm(km);
     if (lastPlace) {
       setNearby([]);
-      selectMutation.mutate({ place: lastPlace, range: km });
+      selectMutation.mutate({ place: lastPlace, range: km, version: ++requestVersion.current });
     }
   };
+
+  useEffect(() => {
+    snapshot.current = { query, results, details, nearby, center, route, rangeKm, lastPlace, sheet, fullMap, depth };
+    window.history.replaceState({ ...window.history.state, nammaSpot: snapshot.current }, "");
+  }, [query, results, details, nearby, center, route, rangeKm, lastPlace, sheet, fullMap, depth]);
+
+  useEffect(() => {
+    const restore = (event: PopStateEvent) => {
+      const previous = event.state?.nammaSpot as MapSnapshot | undefined;
+      if (!previous) return;
+      ++requestVersion.current; ++searchVersion.current;
+      selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset();
+      setQuery(previous.query); setResults(previous.results); setDetails(previous.details); setNearby(previous.nearby);
+      setCenter(previous.center); setRoute(previous.route); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
+      setSheet(previous.sheet); setFullMap(previous.fullMap); setDepth(previous.depth); setError(null);
+    };
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [selectMutation.reset, selectByIdMutation.reset, searchMutation.reset, routeMutation.reset]);
 
   const markers: MapMarker[] = nearby
     .flatMap((g) => g.places.map((p) => ({ ...p, kind: g.key })))
@@ -461,6 +508,8 @@ function Index() {
         </div>
         <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 pb-8">
 
+          {depth > 0 ? <Button size="sm" variant="ghost" className="mb-2" onClick={() => window.history.back()}><ArrowLeft className="size-4" />Back</Button> : null}
+
           {selectMutation.isPending || selectByIdMutation.isPending ? (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Gathering parking, street food and sights…
@@ -554,6 +603,7 @@ function Index() {
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => { setNearby([]); selectMutation.mutate({ place: details, range: rangeKm, version: ++requestVersion.current }); }} disabled={selectMutation.isPending}><RefreshCw className="size-4" />Refresh details</Button>
                 <Button
                   size="sm"
                   variant="secondary"
@@ -628,7 +678,7 @@ function Index() {
 
               {nearby.map((group) => {
                 const Icon = GROUP_ICON[group.key] ?? MapPin;
-                if (!group.places.length) return null;
+                if (!group.places.length && !group.error && group.key !== "streetfood") return null;
                 return (
                   <div key={group.key} className="mt-5">
                     <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
@@ -638,6 +688,7 @@ function Index() {
                         · {group.places.length} nearby
                       </span>
                     </h3>
+                    {group.error ? <p role="alert" className="text-xs text-destructive">{group.error}</p> : !group.places.length ? <p className="text-xs text-muted-foreground">No street food results found near this place.</p> : null}
                     <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
                       {group.places.map((p) => (
                         <PlaceCard key={p.id} p={p} onClick={() => select(p)} />
