@@ -10,5 +10,5 @@ export function hasSubscriptionAccess(input: AccessInput, now = Date.now()) {
 }
 
 export function validSubscriptionSettings(trialDays: number, monthly: number | null, yearly: number | null, paid: boolean) {
-  return [1, 2].includes(trialDays) && [monthly, yearly].every(value => value === null || (Number.isFinite(value) && value > 0)) && (!paid || (monthly !== null && yearly !== null));
+  return Number.isInteger(trialDays) && trialDays >= 1 && trialDays <= 15 && [monthly, yearly].every(value => value === null || (Number.isFinite(value) && value > 0)) && (!paid || (monthly !== null && yearly !== null));
 }
