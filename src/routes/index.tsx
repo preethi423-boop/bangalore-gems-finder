@@ -39,6 +39,7 @@ import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { FavoritesSheet } from "@/components/FavoritesSheet";
 import { PromoStrip } from "@/components/PromoStrip";
 import { ExploreNearby } from "@/components/ExploreNearby";
+import { SubscriptionGate } from "@/components/SubscriptionGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +82,7 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Index,
+  component: () => <SubscriptionGate><Index /></SubscriptionGate>,
 });
 
 const BLR = { lat: 12.9716, lng: 77.5946 };
@@ -415,12 +416,14 @@ function Index() {
           <div className="mt-2 flex flex-wrap gap-1.5">
             <ApiKeyDialog hasKey={Boolean(userKey)} />
             <Link
-              to={session ? "/admin" : "/auth"}
+              to={session ? (isAdmin ? "/admin" : "/subscription") : "/auth"}
+              search={session ? undefined : { returnTo: "/" }}
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
             >
               <LogIn className="size-3.5" />
-              {session ? (isAdmin ? "Manage ads" : "My account") : "Admin login"}
+              {session ? (isAdmin ? "Admin" : "My account") : "Sign in"}
             </Link>
+            <Button asChild variant="outline" size="sm"><Link to="/subscription">Plans &amp; access</Link></Button>
             <FavoritesSheet onOpenPlace={selectById} version={favVersion} />
             <div
               role="group"

@@ -1,0 +1,1 @@
+ALTER TABLE public.subscription_settings ADD CONSTRAINT paid_mode_requires_prices CHECK (NOT paid_mode OR (monthly_price IS NOT NULL AND yearly_price IS NOT NULL));
