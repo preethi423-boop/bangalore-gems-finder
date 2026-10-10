@@ -326,9 +326,9 @@ function Index() {
   const openedShared = useRef(false);
   useEffect(() => {
     if (openedShared.current) return;
+    openedShared.current = true;
     const id = new URLSearchParams(window.location.search).get("place");
     if (!id) return;
-    openedShared.current = true;
     selectById(id);
   }, [selectById]);
 
