@@ -10,8 +10,11 @@ export type Promo = {
 };
 
 export function PromoStrip({ placeName }: { placeName?: string }) {
-  const { data } = useQuery({
-    queryKey: ["promotions", "active"],
+  const { data, isError, isPending } = useQuery({
+    queryKey: ["promotions", "active", placeName],
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 15000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("promotions")
@@ -23,6 +26,8 @@ export function PromoStrip({ placeName }: { placeName?: string }) {
     },
   });
 
+  if (isPending) return <p className="mt-5 text-xs text-muted-foreground">Loading sponsored offers…</p>;
+  if (isError) return <p role="alert" className="mt-5 text-xs text-destructive">Sponsored offers could not be refreshed.</p>;
   if (!data?.length) return null;
 
   return (
@@ -31,7 +36,7 @@ export function PromoStrip({ placeName }: { placeName?: string }) {
         <Megaphone className="size-4 text-primary" />
         Offers &amp; promotions
         <span className="text-xs font-normal text-muted-foreground">
-          · sponsored{placeName ? ` near ${placeName}` : ""}
+          · sponsored
         </span>
       </h3>
       <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
