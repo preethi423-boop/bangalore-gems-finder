@@ -54,6 +54,7 @@ function buildHeaders(mask: string) {
 }
 
 async function gateway(path: string, mask: string, body: unknown) {
+  await requireSubscriptionAccess();
   const res = await fetch(`${GATEWAY}${path}`, {
     method: "POST",
     headers: buildHeaders(mask),

@@ -47,6 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { getUserKey } from "@/lib/user-key";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 import { useAuth } from "@/hooks/useAuth";
+import { explorationSignal } from "@/lib/access-session";
 
 
 import {
@@ -208,6 +209,7 @@ function Index() {
 
   const selectMutation = useMutation({
     mutationFn: async ({ place, range, version }: { place: PlaceLite; range: number; version: number }) => {
+      explorationSignal();
       const [d, n] = await Promise.all([
         userKey
           ? getPlaceDetailsWithKey(userKey, place.id)
@@ -230,6 +232,7 @@ function Index() {
 
   const routeMutation = useMutation({
     mutationFn: async (dest: { lat: number; lng: number }) => {
+      explorationSignal();
       const key = userKey;
       if (!key) throw new Error("no-key");
       const origin = await new Promise<{ lat: number; lng: number }>((resolve, reject) => {
@@ -292,9 +295,11 @@ function Index() {
 
   const selectByIdMutation = useMutation({
     mutationFn: async ({ placeId, range, version }: { placeId: string; range: number; version: number }) => {
+      explorationSignal();
       const d = userKey
         ? await getPlaceDetailsWithKey(userKey, placeId)
         : await doDetails({ data: { placeId } });
+      explorationSignal();
       const n = userKey
         ? await getNearbyWithKey(userKey, d.lat, d.lng, range)
         : await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });

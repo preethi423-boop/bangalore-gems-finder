@@ -18,3 +18,6 @@
 - Do not activate purchase controls or grant paid access until a real payment provider verifies purchases; Play Store and UPI setup is pending and displayed as unavailable.
 - Admin draft previews share subscription plan rendering with the visitor page and never write settings until Save; preserve unsaved drafts during background refreshes.
 - Prebundle lazy admin tabs alongside React to prevent mixed dependency generations during development.
+- Trial duration uses the additive trial_duration_days column; the deprecated trial_days column is never read by new code.
+- A shared access deadline guard blocks and aborts browser data calls at expiry; the access gate unmounts exploration while server calls independently check database access.
+- UPI QR codes are generated locally for admin setup previews only until verified payment processing is connected; QR transfers never grant entitlements.
