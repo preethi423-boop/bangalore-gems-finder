@@ -9,20 +9,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { SubscriptionAdmin } from "@/components/SubscriptionAdmin";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
     meta: [
-      { title: "Access & promotions admin — Namma Spot" },
+      { title: "Admin dashboard — Namma Spot" },
       {
         name: "description",
         content:
-          "Admin area for Namma Spot: create, edit and retire the sponsored offers and product promotions shown next to Bengaluru places.",
+          "Manage Namma Spot subscription prices, free trials, free access and sponsored promotions with a live visitor preview.",
       },
-      { property: "og:title", content: "Access & promotions admin — Namma Spot" },
+      { property: "og:title", content: "Admin dashboard — Namma Spot" },
       {
         property: "og:description",
-        content: "Manage sponsored offers and product promotions shown in Namma Spot.",
+        content: "Manage subscription access and promotions with a live visitor preview in Namma Spot.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -137,12 +138,12 @@ function AdminPage() {
 
   return (
     <main className="min-h-screen bg-background px-4 py-6">
-      <div className="mx-auto w-full max-w-2xl">
-        <div className="flex items-center justify-between gap-2">
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-lg font-semibold">Site administration</h1>
+            <h1 className="text-2xl font-semibold">Admin dashboard</h1>
             <p className="text-sm text-muted-foreground">
-              These appear in the sponsored strip under every place.
+              Namma Spot · Access &amp; promotions
             </p>
           </div>
           <div className="flex gap-2">
@@ -157,7 +158,10 @@ function AdminPage() {
           </div>
         </div>
 
-        {user ? <SubscriptionAdmin userId={user.id} /> : null}
+        <Tabs defaultValue="access" className="mt-6">
+        <TabsList aria-label="Administration sections"><TabsTrigger value="access">Subscription access</TabsTrigger><TabsTrigger value="promotions">Promotions</TabsTrigger></TabsList>
+        <TabsContent value="access">{user ? <SubscriptionAdmin userId={user.id} /> : null}</TabsContent>
+        <TabsContent value="promotions" className="max-w-2xl">
 
         <form
           onSubmit={(e) => {
@@ -251,6 +255,8 @@ function AdminPage() {
             <p className="text-sm text-muted-foreground">No promotions yet.</p>
           )}
         </div>
+        </TabsContent>
+        </Tabs>
       </div>
     </main>
   );
