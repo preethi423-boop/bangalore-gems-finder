@@ -75,10 +75,14 @@ export function MapView({
   useEffect(() => {
     let cancelled = false;
     loadMaps()
-      .then(() => {
-        if (cancelled || !el.current || !window.google) return;
+      .then(async () => {
+        // The bootstrap callback can fire before the Maps class is loaded.
+        // Wait for it before handing Google a container that navigation may remove.
+        const maps = await window.google?.maps?.importLibrary("maps");
+        const container = el.current;
+        if (cancelled || !container?.isConnected || !maps) return;
         if (!map.current) {
-          map.current = new window.google.maps.Map(el.current, {
+          map.current = new maps.Map(container, {
             center,
             zoom: 14,
             disableDefaultUI: true,
@@ -99,6 +103,10 @@ export function MapView({
       .catch((e) => console.error(e));
     return () => {
       cancelled = true;
+      if (map.current && window.google?.maps) {
+        window.google.maps.event.clearInstanceListeners(map.current);
+        map.current = null;
+      }
     };
   }, []);
 
