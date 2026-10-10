@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
-import { ApiKeyDialog } from "@/components/ApiKeyDialog";
+import { AccountMenu } from "@/components/AccountMenu";
 import { FavoritesSheet } from "@/components/FavoritesSheet";
 import { PromoStrip } from "@/components/PromoStrip";
 import { ExploreNearby } from "@/components/ExploreNearby";
@@ -47,7 +47,8 @@ import { Badge } from "@/components/ui/badge";
 import { getUserKey } from "@/lib/user-key";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 import { useAuth } from "@/hooks/useAuth";
-import { showAdminNavigation } from "@/lib/subscription";
+import { explorationSignal } from "@/lib/access-session";
+
 
 import {
   searchPlacesWithKey,
@@ -208,6 +209,7 @@ function Index() {
 
   const selectMutation = useMutation({
     mutationFn: async ({ place, range, version }: { place: PlaceLite; range: number; version: number }) => {
+      explorationSignal();
       const [d, n] = await Promise.all([
         userKey
           ? getPlaceDetailsWithKey(userKey, place.id)
@@ -230,6 +232,7 @@ function Index() {
 
   const routeMutation = useMutation({
     mutationFn: async (dest: { lat: number; lng: number }) => {
+      explorationSignal();
       const key = userKey;
       if (!key) throw new Error("no-key");
       const origin = await new Promise<{ lat: number; lng: number }>((resolve, reject) => {
@@ -292,9 +295,11 @@ function Index() {
 
   const selectByIdMutation = useMutation({
     mutationFn: async ({ placeId, range, version }: { placeId: string; range: number; version: number }) => {
+      explorationSignal();
       const d = userKey
         ? await getPlaceDetailsWithKey(userKey, placeId)
         : await doDetails({ data: { placeId } });
+      explorationSignal();
       const n = userKey
         ? await getNearbyWithKey(userKey, d.lat, d.lng, range)
         : await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
@@ -395,12 +400,12 @@ function Index() {
           <h1 className="mb-2 px-1 text-sm font-semibold tracking-wide text-foreground drop-shadow">
             Namma Spot · Bengaluru & around
           </h1>
-          <form
+          <div className="flex items-center gap-2"><form
             onSubmit={(e) => {
               e.preventDefault();
               runSearch(query);
             }}
-            className="flex items-center gap-2 rounded-full border border-border bg-card p-1.5 pl-4 shadow-[var(--shadow-card)]"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-border bg-card p-1.5 pl-4 shadow-[var(--shadow-card)]"
           >
             <Search className="size-4 shrink-0 text-muted-foreground" />
             <Input
@@ -413,20 +418,9 @@ function Index() {
             <Button type="submit" size="sm" className="rounded-full px-4">
               {searchMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : "Go"}
             </Button>
-          </form>
+          </form><AccountMenu signedIn={Boolean(session)} isAdmin={isAdmin} hasKey={Boolean(userKey)} /></div>
 
           <div className="mt-2 flex flex-wrap gap-1.5">
-            <ApiKeyDialog hasKey={Boolean(userKey)} />
-            {showAdminNavigation(Boolean(session), isAdmin) ? <Button asChild variant="outline" size="sm"><Link to="/admin" aria-label="Admin dashboard" title="Admin dashboard"><ShieldCheck className="size-4" /> Admin</Link></Button> : null}
-            <Link
-              to={session ? "/subscription" : "/auth"}
-              search={session ? undefined : { returnTo: "/" }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
-            >
-              <LogIn className="size-3.5" />
-              {session ? "My account" : "Sign in"}
-            </Link>
-            <Button asChild variant="outline" size="sm"><Link to="/subscription">Plans &amp; access</Link></Button>
             <FavoritesSheet onOpenPlace={selectById} version={favVersion} />
             <div
               role="group"

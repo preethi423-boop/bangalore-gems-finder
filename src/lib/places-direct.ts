@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { PlaceLite, PlaceDetails, NearbyGroup } from "./places.functions";
+import { explorationSignal } from "./access-session";
 
 const PLACES = "https://places.googleapis.com/v1";
 const ROUTES = "https://routes.googleapis.com/directions/v2:computeRoutes";
@@ -63,6 +64,7 @@ function toLite(p: any): PlaceLite {
 
 async function call(url: string, key: string, mask: string, body?: unknown) {
   const res = await fetch(url, {
+    signal: explorationSignal(),
     method: body ? "POST" : "GET",
     headers: {
       "Content-Type": "application/json",

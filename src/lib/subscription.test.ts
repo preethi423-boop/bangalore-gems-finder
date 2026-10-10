@@ -20,10 +20,11 @@ describe("subscription access", () => {
     expect(hasSubscriptionAccess(input, now + 2 * 86400000 - 1)).toBe(true);
     expect(hasSubscriptionAccess(input, now + 2 * 86400000)).toBe(false);
   });
-  it("only accepts one or two trial days", () => {
+  it("accepts integer trial durations from 1 to 15 days", () => {
     expect(validSubscriptionSettings(1, null, null, false)).toBe(true);
     expect(validSubscriptionSettings(2, null, null, false)).toBe(true);
-    expect(validSubscriptionSettings(3, null, null, false)).toBe(false);
+    for (let days = 1; days <= 15; days++) expect(validSubscriptionSettings(days, null, null, false)).toBe(true);
+    for (const days of [0, 16, 1.5, NaN]) expect(validSubscriptionSettings(days, null, null, false)).toBe(false);
   });
   it("requires both positive prices before paid mode", () => {
     expect(validSubscriptionSettings(2, null, 500, true)).toBe(false);

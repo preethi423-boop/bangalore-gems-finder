@@ -117,7 +117,10 @@ export type Database = {
           monthly_price: number | null
           paid_mode: boolean
           trial_days: number
+          trial_duration_days: number
           updated_at: string
+          upi_id: string | null
+          upi_payee_name: string | null
           yearly_price: number | null
         }
         Insert: {
@@ -126,7 +129,10 @@ export type Database = {
           monthly_price?: number | null
           paid_mode?: boolean
           trial_days?: number
+          trial_duration_days?: number
           updated_at?: string
+          upi_id?: string | null
+          upi_payee_name?: string | null
           yearly_price?: number | null
         }
         Update: {
@@ -135,7 +141,10 @@ export type Database = {
           monthly_price?: number | null
           paid_mode?: boolean
           trial_days?: number
+          trial_duration_days?: number
           updated_at?: string
+          upi_id?: string | null
+          upi_payee_name?: string | null
           yearly_price?: number | null
         }
         Relationships: []

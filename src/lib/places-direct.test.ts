@@ -1,7 +1,9 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { getNearbyWithKey } from "./places-direct";
+import { updateExplorationAccess } from "./access-session";
 
-afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => updateExplorationAccess(true));
+afterEach(() => { updateExplorationAccess(false); vi.unstubAllGlobals(); });
 
 it("uses a focused street-food query at the selected location", async () => {
   const requests: Record<string, any>[] = [];

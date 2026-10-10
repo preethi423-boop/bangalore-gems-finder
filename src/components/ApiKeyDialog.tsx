@@ -13,8 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getUserKey, setUserKey } from "@/lib/user-key";
 
-export function ApiKeyDialog({ hasKey }: { hasKey: boolean }) {
-  const [open, setOpen] = useState(false);
+export function ApiKeyDialog({ hasKey, controlledOpen, onControlledOpenChange }: { hasKey: boolean; controlledOpen?: boolean; onControlledOpenChange?: (open: boolean) => void }) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = onControlledOpenChange ?? setLocalOpen;
   const [value, setValue] = useState("");
 
   return (
@@ -25,7 +27,7 @@ export function ApiKeyDialog({ hasKey }: { hasKey: boolean }) {
         if (o) setValue(getUserKey());
       }}
     >
-      <DialogTrigger asChild>
+      {controlledOpen === undefined ? <DialogTrigger asChild>
         <button
           className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
           aria-label="Google API key settings"
@@ -33,7 +35,7 @@ export function ApiKeyDialog({ hasKey }: { hasKey: boolean }) {
           <KeyRound className="size-3.5" />
           {hasKey ? "Your API key" : "Add your Google API key"}
         </button>
-      </DialogTrigger>
+      </DialogTrigger> : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Your Google Maps API key</DialogTitle>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { explorationCandidates, distanceKm, type RecommendationResult } from "@/lib/exploration";
 import type { PlaceDetails, NearbyGroup } from "@/lib/places.functions";
+import { explorationSignal } from "@/lib/access-session";
 
 export function ExploreNearby({ details, nearby, rangeKm, session, isAdmin, onSelect }: {
   details: PlaceDetails; nearby: NearbyGroup[]; rangeKm: number; session: Session | null;
@@ -34,7 +35,7 @@ export function ExploreNearby({ details, nearby, rangeKm, session, isAdmin, onSe
     setBusy(true); setError(null); setResult(null); setReasoning(""); setStopped(false);
     try {
       const response = await fetch("/api/public/explore", {
-        method: "POST", signal: active.signal,
+        method: "POST", signal: AbortSignal.any([active.signal, explorationSignal()]),
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ prompt: prompt.trim(), location: { name: details.name, lat: details.lat, lng: details.lng }, rangeKm, places: candidates, resume }),
       });
