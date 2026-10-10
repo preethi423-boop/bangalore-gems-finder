@@ -23,6 +23,7 @@ import {
   Bike,
   Heart,
   LogIn,
+  ShieldCheck,
   CircleParking,
   CircleCheck,
   CircleHelp,
@@ -46,6 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { getUserKey } from "@/lib/user-key";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 import { useAuth } from "@/hooks/useAuth";
+import { showAdminNavigation } from "@/lib/subscription";
 
 import {
   searchPlacesWithKey,
@@ -415,13 +417,14 @@ function Index() {
 
           <div className="mt-2 flex flex-wrap gap-1.5">
             <ApiKeyDialog hasKey={Boolean(userKey)} />
+            {showAdminNavigation(Boolean(session), isAdmin) ? <Button asChild variant="outline" size="sm"><Link to="/admin" aria-label="Admin dashboard" title="Admin dashboard"><ShieldCheck className="size-4" /> Admin</Link></Button> : null}
             <Link
-              to={session ? (isAdmin ? "/admin" : "/subscription") : "/auth"}
+              to={session ? "/subscription" : "/auth"}
               search={session ? undefined : { returnTo: "/" }}
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
             >
               <LogIn className="size-3.5" />
-              {session ? (isAdmin ? "Admin" : "My account") : "Sign in"}
+              {session ? "My account" : "Sign in"}
             </Link>
             <Button asChild variant="outline" size="sm"><Link to="/subscription">Plans &amp; access</Link></Button>
             <FavoritesSheet onOpenPlace={selectById} version={favVersion} />
