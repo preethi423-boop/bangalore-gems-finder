@@ -89,6 +89,57 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_access: {
+        Row: {
+          subscription_ends_at: string | null
+          trial_ends_at: string
+          trial_started_at: string
+          user_id: string
+        }
+        Insert: {
+          subscription_ends_at?: string | null
+          trial_ends_at: string
+          trial_started_at: string
+          user_id: string
+        }
+        Update: {
+          subscription_ends_at?: string | null
+          trial_ends_at?: string
+          trial_started_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subscription_settings: {
+        Row: {
+          currency: string
+          id: boolean
+          monthly_price: number | null
+          paid_mode: boolean
+          trial_days: number
+          updated_at: string
+          yearly_price: number | null
+        }
+        Insert: {
+          currency?: string
+          id?: boolean
+          monthly_price?: number | null
+          paid_mode?: boolean
+          trial_days?: number
+          updated_at?: string
+          yearly_price?: number | null
+        }
+        Update: {
+          currency?: string
+          id?: boolean
+          monthly_price?: number | null
+          paid_mode?: boolean
+          trial_days?: number
+          updated_at?: string
+          yearly_price?: number | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -119,6 +170,7 @@ export type Database = {
         Args: { _display_name?: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      can_use_subscription_app: { Args: never; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -126,6 +178,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      start_subscription_trial: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user"

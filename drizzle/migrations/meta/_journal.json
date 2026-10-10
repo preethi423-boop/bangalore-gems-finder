@@ -8,6 +8,13 @@
       "when": 1791563424587,
       "tag": "0000_ai_exploration_safety_state",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791600236868,
+      "tag": "0001_subscription_access_controls",
+      "breakpoints": true
     }
   ]
 }
