@@ -1,5 +1,9 @@
 export type AccessInput = { paidMode: boolean; admin: boolean; trialEndsAt?: string | null; subscriptionEndsAt?: string | null };
 
+export function showAdminNavigation(signedIn: boolean, isAdmin: boolean) {
+  return signedIn && isAdmin;
+}
+
 export function hasSubscriptionAccess(input: AccessInput, now = Date.now()) {
   if (!input.paidMode || input.admin) return true;
   return [input.trialEndsAt, input.subscriptionEndsAt].some(value => Boolean(value) && Date.parse(value ?? "") > now);

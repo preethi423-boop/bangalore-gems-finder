@@ -16,3 +16,4 @@
 - Sponsored offers remain site-wide admin content and are periodically refreshed; never label them as location-targeted without location data.
 - Subscription access is database-authoritative: admin-controlled settings, once-per-account explicit trials, and service-only paid entitlements; server Maps and AI calls verify access, while user-key Maps remain third-party browser calls behind the UI gate.
 - Do not activate purchase controls or grant paid access until a real payment provider verifies purchases; Play Store and UPI setup is pending and displayed as unavailable.
+- Admin draft previews share subscription plan rendering with the visitor page and never write settings until Save; preserve unsaved drafts during background refreshes.

@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { hasSubscriptionAccess, validSubscriptionSettings } from "./subscription";
+import { hasSubscriptionAccess, validSubscriptionSettings, showAdminNavigation } from "./subscription";
 
 describe("subscription access", () => {
+  it("only exposes admin navigation to signed-in administrators", () => {
+    expect(showAdminNavigation(true, true)).toBe(true);
+    expect(showAdminNavigation(true, false)).toBe(false);
+    expect(showAdminNavigation(false, false)).toBe(false);
+    expect(showAdminNavigation(false, true)).toBe(false);
+  });
   const now = Date.parse("2026-10-10T00:00:00Z");
   it("allows anonymous visitors while the admin keeps the site free", () => {
     expect(hasSubscriptionAccess({ paidMode: false, admin: false }, now)).toBe(true);
