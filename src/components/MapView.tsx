@@ -219,7 +219,7 @@ export function MapView({
         onClick={() => setSatellite((s) => !s)}
         aria-pressed={satellite}
         title={satellite ? "Switch to normal map" : "Switch to satellite view"}
-        className="absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border border-border bg-card/90 px-3 py-2 text-xs font-semibold text-card-foreground shadow-[var(--shadow-card)] backdrop-blur transition-colors hover:bg-accent"
+        className="absolute right-3 top-[3.75rem] z-10 inline-flex items-center gap-2 rounded-full border border-border bg-card/90 px-3 py-2 text-xs font-semibold text-card-foreground shadow-[var(--shadow-card)] backdrop-blur transition-colors hover:bg-accent"
       >
         {satellite ? <MapIcon className="size-4" /> : <Satellite className="size-4" />}
         {satellite ? "Normal" : "Satellite"}
