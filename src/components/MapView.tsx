@@ -214,6 +214,16 @@ export function MapView({
   return (
     <div className="relative h-full w-full">
       <div ref={el} className="h-full w-full" aria-label="Map of the selected place" />
+      <button
+        type="button"
+        onClick={() => setSatellite((s) => !s)}
+        aria-pressed={satellite}
+        title={satellite ? "Switch to normal map" : "Switch to satellite view"}
+        className="absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border border-border bg-card/90 px-3 py-2 text-xs font-semibold text-card-foreground shadow-[var(--shadow-card)] backdrop-blur transition-colors hover:bg-accent"
+      >
+        {satellite ? <MapIcon className="size-4" /> : <Satellite className="size-4" />}
+        {satellite ? "Normal" : "Satellite"}
+      </button>
       {legend.length ? (
         <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-xl border border-border bg-card/90 p-2 text-[11px] shadow-[var(--shadow-card)] backdrop-blur">
           <p className="mb-1 font-semibold text-card-foreground">Map legend</p>
