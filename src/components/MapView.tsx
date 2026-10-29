@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Map as MapIcon, Satellite } from "lucide-react";
+import { AlertTriangle, Map as MapIcon, Satellite, X } from "lucide-react";
 import type { PlaceLite } from "@/lib/places.functions";
-import { effectiveMapsKey } from "@/lib/user-key";
+import {
+  activeUserKey,
+  effectiveMapsKey,
+  isMapsKeyRejected,
+  markMapsKeyRejected,
+  shouldRetryAfterKeyFailure,
+} from "@/lib/user-key";
 
 declare global {
   interface Window {
     google?: any;
     __initBlrMap?: () => void;
+    gm_authFailure?: () => void;
   }
 }
 
@@ -17,9 +24,21 @@ function loadMaps(): Promise<void> {
   if (window.google?.maps) return Promise.resolve();
   if (loaderPromise) return loaderPromise;
   loaderPromise = new Promise<void>((resolve, reject) => {
+    const usingUserKey = Boolean(activeUserKey());
     const key = effectiveMapsKey();
     const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
     window.__initBlrMap = () => resolve();
+    // Google calls this global when it rejects the key in use (billing off,
+    // referrer restrictions, disabled API). Fall back to the built-in key.
+    window.gm_authFailure = () => {
+      if (usingUserKey) markMapsKeyRejected();
+      if (shouldRetryAfterKeyFailure()) {
+        window.location.reload();
+        return;
+      }
+      loaderPromise = null;
+      reject(new Error("maps-key-rejected"));
+    };
     const s = document.createElement("script");
     s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=geometry&loading=async&callback=__initBlrMap&channel=${channel}`;
     s.async = true;
