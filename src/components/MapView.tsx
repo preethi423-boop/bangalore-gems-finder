@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Map as MapIcon, Satellite } from "lucide-react";
 import type { PlaceLite } from "@/lib/places.functions";
 import { effectiveMapsKey } from "@/lib/user-key";
 
@@ -66,6 +67,9 @@ export function MapView({
   const line = useRef<any>(null);
   const poiRef = useRef(onPoiSelect);
   poiRef.current = onPoiSelect;
+  const [satellite, setSatellite] = useState(false);
+  const satelliteRef = useRef(satellite);
+  satelliteRef.current = satellite;
 
   const legend = useMemo(() => {
     const keys = Array.from(new Set(markers.map((m) => m.kind).filter(Boolean) as string[]));
