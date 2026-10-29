@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Map as MapIcon, Satellite } from "lucide-react";
 import type { PlaceLite } from "@/lib/places.functions";
 import { effectiveMapsKey } from "@/lib/user-key";
 
@@ -66,6 +67,9 @@ export function MapView({
   const line = useRef<any>(null);
   const poiRef = useRef(onPoiSelect);
   poiRef.current = onPoiSelect;
+  const [satellite, setSatellite] = useState(false);
+  const satelliteRef = useRef(satellite);
+  satelliteRef.current = satellite;
 
   const legend = useMemo(() => {
     const keys = Array.from(new Set(markers.map((m) => m.kind).filter(Boolean) as string[]));
@@ -109,6 +113,26 @@ export function MapView({
 
   // Swap to a tilted 3D aerial view once a place is selected.
   useEffect(() => {
+    if (threeD) setSatellite(true);
+    else setSatellite(false);
+  }, [threeD, center.lat, center.lng]);
+
+  useEffect(() => {
+    let raf = 0;
+    const apply = () => {
+      if (!map.current || !window.google) {
+        raf = window.setTimeout(apply, 200) as unknown as number;
+        return;
+      }
+      map.current.setMapTypeId(
+        satellite ? window.google.maps.MapTypeId.HYBRID : window.google.maps.MapTypeId.ROADMAP
+      );
+    };
+    apply();
+    return () => clearTimeout(raf);
+  }, [satellite]);
+
+  useEffect(() => {
     let raf = 0;
     const apply = () => {
       if (!map.current || !window.google) {
@@ -116,7 +140,6 @@ export function MapView({
         return;
       }
       if (threeD) {
-        map.current.setMapTypeId(window.google.maps.MapTypeId.HYBRID);
         map.current.setCenter(center);
         map.current.setZoom(19);
         // 45° aerial imagery only kicks in once the tiles for this zoom exist,
@@ -131,7 +154,6 @@ export function MapView({
       } else {
         map.current.setTilt(0);
         map.current.setHeading(0);
-        map.current.setMapTypeId(window.google.maps.MapTypeId.ROADMAP);
         map.current.setZoom(14);
       }
     };
@@ -192,6 +214,16 @@ export function MapView({
   return (
     <div className="relative h-full w-full">
       <div ref={el} className="h-full w-full" aria-label="Map of the selected place" />
+      <button
+        type="button"
+        onClick={() => setSatellite((s) => !s)}
+        aria-pressed={satellite}
+        title={satellite ? "Switch to normal map" : "Switch to satellite view"}
+        className="absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border border-border bg-card/90 px-3 py-2 text-xs font-semibold text-card-foreground shadow-[var(--shadow-card)] backdrop-blur transition-colors hover:bg-accent"
+      >
+        {satellite ? <MapIcon className="size-4" /> : <Satellite className="size-4" />}
+        {satellite ? "Normal" : "Satellite"}
+      </button>
       {legend.length ? (
         <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-xl border border-border bg-card/90 p-2 text-[11px] shadow-[var(--shadow-card)] backdrop-blur">
           <p className="mb-1 font-semibold text-card-foreground">Map legend</p>
