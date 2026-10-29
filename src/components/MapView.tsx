@@ -113,6 +113,26 @@ export function MapView({
 
   // Swap to a tilted 3D aerial view once a place is selected.
   useEffect(() => {
+    if (threeD) setSatellite(true);
+    else setSatellite(false);
+  }, [threeD, center.lat, center.lng]);
+
+  useEffect(() => {
+    let raf = 0;
+    const apply = () => {
+      if (!map.current || !window.google) {
+        raf = window.setTimeout(apply, 200) as unknown as number;
+        return;
+      }
+      map.current.setMapTypeId(
+        satellite ? window.google.maps.MapTypeId.HYBRID : window.google.maps.MapTypeId.ROADMAP
+      );
+    };
+    apply();
+    return () => clearTimeout(raf);
+  }, [satellite]);
+
+  useEffect(() => {
     let raf = 0;
     const apply = () => {
       if (!map.current || !window.google) {
@@ -120,7 +140,6 @@ export function MapView({
         return;
       }
       if (threeD) {
-        map.current.setMapTypeId(window.google.maps.MapTypeId.HYBRID);
         map.current.setCenter(center);
         map.current.setZoom(19);
         // 45° aerial imagery only kicks in once the tiles for this zoom exist,
@@ -135,7 +154,6 @@ export function MapView({
       } else {
         map.current.setTilt(0);
         map.current.setHeading(0);
-        map.current.setMapTypeId(window.google.maps.MapTypeId.ROADMAP);
         map.current.setZoom(14);
       }
     };
