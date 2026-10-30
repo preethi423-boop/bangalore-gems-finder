@@ -44,7 +44,7 @@ import { SubscriptionGate } from "@/components/SubscriptionGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { getUserKey } from "@/lib/user-key";
+import { activeUserKey, getUserKey, isMapsKeyRejected } from "@/lib/user-key";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 import { useAuth } from "@/hooks/useAuth";
 import { explorationSignal } from "@/lib/access-session";
@@ -189,7 +189,7 @@ function Index() {
     setSheet(order[i]);
   };
 
-  useEffect(() => setUserKeyState(getUserKey()), []);
+  useEffect(() => setUserKeyState(activeUserKey()), []);
 
   const doSearch = useServerFn(searchPlaces);
   const doDetails = useServerFn(getPlaceDetails);
@@ -252,7 +252,9 @@ function Index() {
     onError: (e: Error) =>
       setError(
         e.message === "no-key"
-          ? "Add your Google API key to get routing."
+          ? getUserKey() && isMapsKeyRejected()
+            ? "Your saved Google API key isn't working (check its billing in Google Cloud), so routing is unavailable."
+            : "Add your Google API key to get routing."
           : e.message === "no-geo"
             ? "Location permission is needed to build a route."
             : "Could not build a route right now.",
