@@ -124,7 +124,10 @@ export function MapView({
           });
         }
       })
-      .catch((e) => console.error(e));
+      .catch((e) => {
+        console.error(e);
+        if (!cancelled) setKeyNotice(true);
+      });
     return () => {
       cancelled = true;
     };
