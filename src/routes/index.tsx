@@ -189,7 +189,7 @@ function Index() {
     setSheet(order[i]);
   };
 
-  useEffect(() => setUserKeyState(getUserKey()), []);
+  useEffect(() => setUserKeyState(activeUserKey()), []);
 
   const doSearch = useServerFn(searchPlaces);
   const doDetails = useServerFn(getPlaceDetails);

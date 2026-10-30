@@ -58,6 +58,7 @@ export function ApiKeyDialog({ hasKey, controlledOpen, onControlledOpenChange }:
             variant="outline"
             onClick={() => {
               setUserKey("");
+              clearMapsKeyRejected();
               window.location.reload();
             }}
           >
@@ -66,6 +67,7 @@ export function ApiKeyDialog({ hasKey, controlledOpen, onControlledOpenChange }:
           <Button
             onClick={() => {
               setUserKey(value);
+              clearMapsKeyRejected();
               window.location.reload();
             }}
           >
