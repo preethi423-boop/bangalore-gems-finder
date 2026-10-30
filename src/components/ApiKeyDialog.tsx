@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getUserKey, setUserKey } from "@/lib/user-key";
+import { clearMapsKeyRejected, getUserKey, setUserKey } from "@/lib/user-key";
 
 export function ApiKeyDialog({ hasKey, controlledOpen, onControlledOpenChange }: { hasKey: boolean; controlledOpen?: boolean; onControlledOpenChange?: (open: boolean) => void }) {
   const [localOpen, setLocalOpen] = useState(false);

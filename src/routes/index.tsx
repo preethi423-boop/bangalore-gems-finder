@@ -44,7 +44,7 @@ import { SubscriptionGate } from "@/components/SubscriptionGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { getUserKey } from "@/lib/user-key";
+import { activeUserKey } from "@/lib/user-key";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 import { useAuth } from "@/hooks/useAuth";
 import { explorationSignal } from "@/lib/access-session";
