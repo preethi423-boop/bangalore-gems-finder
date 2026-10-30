@@ -89,6 +89,11 @@ export function MapView({
   const [satellite, setSatellite] = useState(false);
   const satelliteRef = useRef(satellite);
   satelliteRef.current = satellite;
+  // Set client-side only to avoid an SSR hydration mismatch.
+  const [keyNotice, setKeyNotice] = useState(false);
+  useEffect(() => {
+    setKeyNotice(isMapsKeyRejected());
+  }, []);
 
   const legend = useMemo(() => {
     const keys = Array.from(new Set(markers.map((m) => m.kind).filter(Boolean) as string[]));
