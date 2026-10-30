@@ -252,7 +252,9 @@ function Index() {
     onError: (e: Error) =>
       setError(
         e.message === "no-key"
-          ? "Add your Google API key to get routing."
+          ? getUserKey() && isMapsKeyRejected()
+            ? "Your saved Google API key isn't working (check its billing in Google Cloud), so routing is unavailable."
+            : "Add your Google API key to get routing."
           : e.message === "no-geo"
             ? "Location permission is needed to build a route."
             : "Could not build a route right now.",
