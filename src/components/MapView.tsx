@@ -240,6 +240,27 @@ export function MapView({
 
   return (
     <div className="relative h-full w-full">
+      {keyNotice ? (
+        <div
+          className="absolute left-3 right-3 top-2 z-20 flex items-start gap-2 rounded-xl border border-amber-300/60 bg-card/95 p-2.5 text-xs shadow-[var(--shadow-card)] backdrop-blur"
+          role="status"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+          <p className="text-muted-foreground">
+            Your Google Maps key isn't working (billing may be off or restrictions block this site).
+            The app is using its built-in map key instead — enable billing for your key in Google
+            Cloud or update it in the API key settings.
+          </p>
+          <button
+            type="button"
+            aria-label="Dismiss map key notice"
+            onClick={() => setKeyNotice(false)}
+            className="ml-auto rounded p-0.5 text-muted-foreground transition hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      ) : null}
       <div ref={el} className="h-full w-full" aria-label="Map of the selected place" />
       <button
         type="button"
