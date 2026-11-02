@@ -57,7 +57,9 @@ function AuthPage() {
         });
         if (error) throw error;
         if (!data.session) {
-          setMessage("Check your email to confirm your account, then sign in.");
+          setMessage(
+            "Check your inbox for a confirmation email, then sign in. No email? Check spam, or sign up again with the same email to resend it."
+          );
           return;
         }
       } else {
