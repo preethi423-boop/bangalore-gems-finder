@@ -1,4 +1,10 @@
-# Nearby AI exploration
+# Roadmap
+
+## Account creation fix (in progress)
+- Signup currently blocked by two checks: weak/breached password rejection, and confirmation-email delivery failures ("could not be delivered recently") that stop accounts from being created.
+- Pending user decision: activate accounts immediately without email confirmation, or keep confirmation and fix email delivery with a sender domain.
+- Minor: show password requirements up front on the sign-up form.
+
 - [x] Group account controls beside search, expand trials to 1–15 days, add admin UPI setup/QR previews, and enforce expiry immediately.
 - [x] Expand admin dashboard with live visitor preview and admin-only navigation; verified using the admin session, signed-out view and seven passing rule tests.
 - [x] Add INR monthly/yearly pricing controls, admin free mode, explicit 1–2 day trials, account page and server access checks; payment checkout remains unavailable.
