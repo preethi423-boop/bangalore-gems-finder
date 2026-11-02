@@ -57,7 +57,9 @@ function AuthPage() {
         });
         if (error) throw error;
         if (!data.session) {
-          setMessage("Check your email to confirm your account, then sign in.");
+          setMessage(
+            "Check your inbox for a confirmation email, then sign in. No email? Check spam, or sign up again with the same email to resend it."
+          );
           return;
         }
       } else {
@@ -121,6 +123,11 @@ function AuthPage() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete={mode === "signin" ? "current-password" : "new-password"}
             />
+            {mode === "signup" ? (
+              <p className="text-xs text-muted-foreground">
+                At least 6 characters. Avoid common or previously leaked passwords — they are rejected for your safety.
+              </p>
+            ) : null}
           </div>
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : null}
