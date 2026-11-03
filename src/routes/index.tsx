@@ -155,6 +155,7 @@ function Index() {
   const [userKey, setUserKeyState] = useState("");
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [routeStops, setRouteStops] = useState<string[] | null>(null);
+  const [planRouteOn, setPlanRouteOn] = useState(false);
   const [rangeKm, setRangeKm] = useState(5);
   const [lastPlace, setLastPlace] = useState<PlaceLite | null>(null);
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
@@ -263,6 +264,7 @@ function Index() {
     onSuccess: (r) => {
       setRoute(r);
       setRouteStops(null);
+      setPlanRouteOn(false);
       setError(null);
     },
     onError: routeError,
