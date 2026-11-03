@@ -155,6 +155,7 @@ function Index() {
   const [userKey, setUserKeyState] = useState("");
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [routeStops, setRouteStops] = useState<string[] | null>(null);
+  const [planRouteOn, setPlanRouteOn] = useState(false);
   const [rangeKm, setRangeKm] = useState(5);
   const [lastPlace, setLastPlace] = useState<PlaceLite | null>(null);
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
@@ -263,6 +264,7 @@ function Index() {
     onSuccess: (r) => {
       setRoute(r);
       setRouteStops(null);
+      setPlanRouteOn(false);
       setError(null);
     },
     onError: routeError,
@@ -296,6 +298,7 @@ function Index() {
     onSuccess: ({ r, labels }) => {
       setRoute(r);
       setRouteStops(labels);
+      setPlanRouteOn(true);
       setError(null);
     },
     onError: routeError,
@@ -327,6 +330,7 @@ function Index() {
       setNearby([]);
       setRoute(null);
       setRouteStops(null);
+      setPlanRouteOn(false);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
       setSheet("peek");
@@ -367,6 +371,7 @@ function Index() {
       setNearby([]);
       setRoute(null);
       setRouteStops(null);
+      setPlanRouteOn(false);
       setSheet("half");
       setFullMap(false);
       selectByIdMutation.mutate({ placeId, range: rangeKm, version: ++requestVersion.current });
@@ -404,7 +409,7 @@ function Index() {
       ++requestVersion.current; ++searchVersion.current;
       selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset();
       setQuery(previous.query); setResults(previous.results); setDetails(previous.details); setNearby(previous.nearby);
-      setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
+      setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setPlanRouteOn(false); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
       setSheet(previous.sheet); setFullMap(previous.fullMap); setDepth(previous.depth); setError(null);
     };
     window.addEventListener("popstate", restore);
@@ -664,8 +669,9 @@ function Index() {
                 </Button>
                 <Button
                   size="sm"
-                  variant="default"
+                  variant={planRouteOn ? "default" : "outline"}
                   className="gap-1.5"
+                  aria-pressed={planRouteOn}
                   onClick={() => planRouteMutation.mutate(details)}
                   disabled={planRouteMutation.isPending}
                 >
