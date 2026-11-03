@@ -154,6 +154,7 @@ function Index() {
   const [error, setError] = useState<string | null>(null);
   const [userKey, setUserKeyState] = useState("");
   const [route, setRoute] = useState<RouteResult | null>(null);
+  const [routeStops, setRouteStops] = useState<string[] | null>(null);
   const [rangeKm, setRangeKm] = useState(5);
   const [lastPlace, setLastPlace] = useState<PlaceLite | null>(null);
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
@@ -230,35 +231,74 @@ function Index() {
     onError: (_, { version }) => { if (version === requestVersion.current) setError("Could not load this place's details."); },
   });
 
+  const getMyLocation = () =>
+    new Promise<{ lat: number; lng: number }>((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error("no-geo"));
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => reject(new Error("no-geo")),
+        { enableHighAccuracy: true, timeout: 10000 },
+      );
+    });
+
+  const routeError = (e: Error) =>
+    setError(
+      e.message === "no-key"
+        ? getUserKey() && isMapsKeyRejected()
+          ? "Your saved Google API key isn't working (check its billing in Google Cloud), so routing is unavailable."
+          : "Add your Google API key to get routing."
+        : e.message === "no-geo"
+          ? "Location permission is needed to build a route."
+          : "Could not build a route right now.",
+    );
+
   const routeMutation = useMutation({
     mutationFn: async (dest: { lat: number; lng: number }) => {
       explorationSignal();
       const key = userKey;
       if (!key) throw new Error("no-key");
-      const origin = await new Promise<{ lat: number; lng: number }>((resolve, reject) => {
-        if (!navigator.geolocation) return reject(new Error("no-geo"));
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-          () => reject(new Error("no-geo")),
-          { enableHighAccuracy: true, timeout: 10000 },
-        );
-      });
+      const origin = await getMyLocation();
       return computeRouteWithKey(key, origin, dest, "DRIVE");
     },
     onSuccess: (r) => {
       setRoute(r);
+      setRouteStops(null);
       setError(null);
     },
-    onError: (e: Error) =>
-      setError(
-        e.message === "no-key"
-          ? getUserKey() && isMapsKeyRejected()
-            ? "Your saved Google API key isn't working (check its billing in Google Cloud), so routing is unavailable."
-            : "Add your Google API key to get routing."
-          : e.message === "no-geo"
-            ? "Location permission is needed to build a route."
-            : "Could not build a route right now.",
-      ),
+    onError: routeError,
+  });
+
+  const planRouteMutation = useMutation({
+    mutationFn: async (dest: PlaceDetails) => {
+      explorationSignal();
+      const key = userKey;
+      if (!key) throw new Error("no-key");
+      const origin = await getMyLocation();
+      const stops: Array<{ lat: number; lng: number }> = [];
+      const labels: string[] = [];
+      if (dest.parkingStatus !== "available") {
+        const parking = nearby.find((g) => g.key === "parking")?.places ?? [];
+        if (parking.length) {
+          const nearest = parking.reduce((best, p) =>
+            Math.hypot(p.lat - dest.lat, p.lng - dest.lng) <
+            Math.hypot(best.lat - dest.lat, best.lng - dest.lng)
+              ? p
+              : best,
+          );
+          stops.push({ lat: nearest.lat, lng: nearest.lng });
+          labels.push(`Parking: ${nearest.name}`);
+        }
+      }
+      labels.push(`Visit: ${dest.name}`);
+      const r = await computeRouteWithKey(key, origin, { lat: dest.lat, lng: dest.lng }, "DRIVE", stops);
+      return { r, labels };
+    },
+    onSuccess: ({ r, labels }) => {
+      setRoute(r);
+      setRouteStops(labels);
+      setError(null);
+    },
+    onError: routeError,
   });
 
   const runSearch = (q: string) => {
@@ -286,6 +326,7 @@ function Index() {
       setDetails(null);
       setNearby([]);
       setRoute(null);
+      setRouteStops(null);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
       setSheet("peek");
@@ -325,6 +366,7 @@ function Index() {
       setDetails(null);
       setNearby([]);
       setRoute(null);
+      setRouteStops(null);
       setSheet("half");
       setFullMap(false);
       selectByIdMutation.mutate({ placeId, range: rangeKm, version: ++requestVersion.current });
@@ -362,7 +404,7 @@ function Index() {
       ++requestVersion.current; ++searchVersion.current;
       selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset();
       setQuery(previous.query); setResults(previous.results); setDetails(previous.details); setNearby(previous.nearby);
-      setCenter(previous.center); setRoute(previous.route); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
+      setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
       setSheet(previous.sheet); setFullMap(previous.fullMap); setDepth(previous.depth); setError(null);
     };
     window.addEventListener("popstate", restore);
@@ -622,6 +664,20 @@ function Index() {
                 </Button>
                 <Button
                   size="sm"
+                  variant="default"
+                  className="gap-1.5"
+                  onClick={() => planRouteMutation.mutate(details)}
+                  disabled={planRouteMutation.isPending}
+                >
+                  {planRouteMutation.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RouteIcon className="size-4" />
+                  )}
+                  Plan full route
+                </Button>
+                <Button
+                  size="sm"
                   variant={saved ? "default" : "outline"}
                   className="gap-1.5"
                   aria-pressed={saved}
@@ -651,6 +707,18 @@ function Index() {
                       </span>
                     </div>
                   </div>
+                  {routeStops?.length ? (
+                    <ol className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      <li className="flex items-center gap-1.5">
+                        <span className="inline-block size-1.5 rounded-full bg-primary" /> Start: your location
+                      </li>
+                      {routeStops.map((stop, i) => (
+                        <li key={i} className="flex items-center gap-1.5">
+                          <span className="inline-block size-1.5 rounded-full bg-primary" /> {stop}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : null}
                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {route.fareEstimates.map((fare) => (
                       <div key={fare.type} className="rounded-md border border-border bg-card px-3 py-2">

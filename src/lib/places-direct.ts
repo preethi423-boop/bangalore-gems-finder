@@ -176,6 +176,7 @@ export async function computeRouteWithKey(
   origin: { lat: number; lng: number },
   destination: { lat: number; lng: number },
   mode: "DRIVE" | "WALK" | "TWO_WHEELER" = "DRIVE",
+  intermediates: Array<{ lat: number; lng: number }> = [],
 ): Promise<RouteResult> {
   const json: any = await call(
     ROUTES,
@@ -186,6 +187,9 @@ export async function computeRouteWithKey(
       destination: {
         location: { latLng: { latitude: destination.lat, longitude: destination.lng } },
       },
+      intermediates: intermediates.map((s) => ({
+        location: { latLng: { latitude: s.lat, longitude: s.lng } },
+      })),
       travelMode: mode,
       routingPreference: mode === "WALK" ? undefined : "TRAFFIC_AWARE",
       languageCode: "en-IN",
