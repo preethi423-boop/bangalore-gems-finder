@@ -330,6 +330,7 @@ function Index() {
       setNearby([]);
       setRoute(null);
       setRouteStops(null);
+      setPlanRouteOn(false);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
       setSheet("peek");
@@ -370,6 +371,7 @@ function Index() {
       setNearby([]);
       setRoute(null);
       setRouteStops(null);
+      setPlanRouteOn(false);
       setSheet("half");
       setFullMap(false);
       selectByIdMutation.mutate({ placeId, range: rangeKm, version: ++requestVersion.current });
@@ -407,7 +409,7 @@ function Index() {
       ++requestVersion.current; ++searchVersion.current;
       selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset();
       setQuery(previous.query); setResults(previous.results); setDetails(previous.details); setNearby(previous.nearby);
-      setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
+      setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setPlanRouteOn(false); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
       setSheet(previous.sheet); setFullMap(previous.fullMap); setDepth(previous.depth); setError(null);
     };
     window.addEventListener("popstate", restore);
