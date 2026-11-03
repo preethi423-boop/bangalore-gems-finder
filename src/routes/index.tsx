@@ -707,6 +707,18 @@ function Index() {
                       </span>
                     </div>
                   </div>
+                  {routeStops?.length ? (
+                    <ol className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      <li className="flex items-center gap-1.5">
+                        <span className="inline-block size-1.5 rounded-full bg-primary" /> Start: your location
+                      </li>
+                      {routeStops.map((stop, i) => (
+                        <li key={i} className="flex items-center gap-1.5">
+                          <span className="inline-block size-1.5 rounded-full bg-primary" /> {stop}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : null}
                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {route.fareEstimates.map((fare) => (
                       <div key={fare.type} className="rounded-md border border-border bg-card px-3 py-2">
