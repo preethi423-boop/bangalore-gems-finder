@@ -326,6 +326,7 @@ function Index() {
       setDetails(null);
       setNearby([]);
       setRoute(null);
+      setRouteStops(null);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
       setSheet("peek");
