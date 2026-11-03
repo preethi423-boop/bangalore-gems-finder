@@ -664,6 +664,20 @@ function Index() {
                 </Button>
                 <Button
                   size="sm"
+                  variant="default"
+                  className="gap-1.5"
+                  onClick={() => planRouteMutation.mutate(details)}
+                  disabled={planRouteMutation.isPending}
+                >
+                  {planRouteMutation.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RouteIcon className="size-4" />
+                  )}
+                  Plan full route
+                </Button>
+                <Button
+                  size="sm"
                   variant={saved ? "default" : "outline"}
                   className="gap-1.5"
                   aria-pressed={saved}
