@@ -298,6 +298,7 @@ function Index() {
     onSuccess: ({ r, labels }) => {
       setRoute(r);
       setRouteStops(labels);
+      setPlanRouteOn(true);
       setError(null);
     },
     onError: routeError,
@@ -666,8 +667,9 @@ function Index() {
                 </Button>
                 <Button
                   size="sm"
-                  variant="default"
+                  variant={planRouteOn ? "default" : "outline"}
                   className="gap-1.5"
+                  aria-pressed={planRouteOn}
                   onClick={() => planRouteMutation.mutate(details)}
                   disabled={planRouteMutation.isPending}
                 >
