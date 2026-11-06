@@ -33,6 +33,9 @@ import {
   Route as RouteIcon,
   ArrowLeft,
   RefreshCw,
+  Plus,
+  X,
+  ListOrdered,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
@@ -157,6 +160,7 @@ function Index() {
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [routeStops, setRouteStops] = useState<string[] | null>(null);
   const [planRouteOn, setPlanRouteOn] = useState(false);
+  const [routePlaces, setRoutePlaces] = useState<PlaceLite[]>([]);
   const [rangeKm, setRangeKm] = useState(5);
   const [lastPlace, setLastPlace] = useState<PlaceLite | null>(null);
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
@@ -305,6 +309,42 @@ function Index() {
     onError: routeError,
   });
 
+  const addToRoute = (p: PlaceLite) => {
+    setRoutePlaces((list) => (list.some((x) => x.id === p.id) ? list : [...list, p]));
+  };
+
+  const removeFromRoute = (id: string) => {
+    setRoutePlaces((list) => list.filter((x) => x.id !== id));
+  };
+
+  const fullRouteMutation = useMutation({
+    mutationFn: async (places: PlaceLite[]) => {
+      explorationSignal();
+      const key = userKey;
+      if (!key) throw new Error("no-key");
+      if (!places.length) throw new Error("no-stops");
+      const origin = await getMyLocation();
+      const destination = places[places.length - 1];
+      const intermediates = places.slice(0, -1).map((p) => ({ lat: p.lat, lng: p.lng }));
+      const r = await computeRouteWithKey(
+        key,
+        origin,
+        { lat: destination.lat, lng: destination.lng },
+        "DRIVE",
+        intermediates,
+      );
+      return { r, labels: places.map((p, i) => `Stop ${i + 1}: ${p.name}`) };
+    },
+    onSuccess: ({ r, labels }) => {
+      setRoute(r);
+      setRouteStops(labels);
+      setPlanRouteOn(false);
+      setError(null);
+      setSheet("half");
+    },
+    onError: routeError,
+  });
+
   const runSearch = (q: string) => {
     const value = q.trim();
     if (!value) return;
@@ -421,6 +461,52 @@ function Index() {
     .flatMap((g) => g.places.map((p) => ({ ...p, kind: g.key })))
     .slice(0, 40);
 
+  const routePanel = route ? (
+    <div className="mt-3 rounded-lg border border-border bg-secondary/60 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold">Travel options</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">From your current location</p>
+        </div>
+        <div className="flex items-center gap-3 text-xs font-medium text-foreground">
+          <span className="inline-flex items-center gap-1">
+            <RouteIcon className="size-3.5 text-primary" /> {route.distanceText}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Clock3 className="size-3.5 text-primary" /> {route.durationText}
+          </span>
+        </div>
+      </div>
+      {routeStops?.length ? (
+        <ol className="mt-2 space-y-1 text-xs text-muted-foreground">
+          <li className="flex items-center gap-1.5">
+            <span className="inline-block size-1.5 rounded-full bg-primary" /> Start: your location
+          </li>
+          {routeStops.map((stop, i) => (
+            <li key={i} className="flex items-center gap-1.5">
+              <span className="inline-block size-1.5 rounded-full bg-primary" /> {stop}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {route.fareEstimates.map((fare) => (
+          <div key={fare.type} className="rounded-md border border-border bg-card px-3 py-2">
+            <p className="text-xs text-muted-foreground">{fare.type}</p>
+            <p className="mt-1 flex items-center gap-0.5 text-sm font-semibold">
+              <IndianRupee className="size-3.5 text-primary" aria-hidden="true" />
+              <span className="sr-only">Estimated fare:</span>
+              {fare.estimateText.replace("₹", "").replace("–₹", "–")}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+        Estimated fares only. Actual prices may vary with demand, waiting, tolls, and provider pricing.
+      </p>
+    </div>
+  ) : null;
+
   return (
     <main className="relative flex h-screen w-full flex-col overflow-hidden bg-background">
       <div className="absolute inset-0">
@@ -469,6 +555,60 @@ function Index() {
               {searchMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : "Go"}
             </Button>
           </form><AccountMenu signedIn={Boolean(session)} isAdmin={isAdmin} hasKey={Boolean(userKey)} /></div>
+
+          {routePlaces.length > 0 ? (
+            <div className="mt-2 rounded-2xl border border-border bg-card/95 p-2.5 shadow-[var(--shadow-card)] backdrop-blur">
+              <div className="flex items-center justify-between gap-2">
+                <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                  <ListOrdered className="size-3.5 text-primary" /> Full route · {routePlaces.length}{" "}
+                  {routePlaces.length === 1 ? "place" : "places"}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setRoutePlaces([])}
+                    className="rounded-full px-2 py-1 text-[11px] text-muted-foreground transition hover:text-foreground"
+                  >
+                    Clear
+                  </button>
+                  <Button
+                    size="sm"
+                    className="h-7 rounded-full px-3 text-xs"
+                    onClick={() => fullRouteMutation.mutate(routePlaces)}
+                    disabled={fullRouteMutation.isPending}
+                  >
+                    {fullRouteMutation.isPending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <RouteIcon className="size-3.5" />
+                    )}
+                    Plan route
+                  </Button>
+                </div>
+              </div>
+              <ol className="mt-2 flex flex-wrap gap-1.5">
+                {routePlaces.map((p, i) => (
+                  <li
+                    key={p.id}
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-secondary px-2 py-1 text-[11px] text-secondary-foreground"
+                  >
+                    <span className="inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                      {i + 1}
+                    </span>
+                    <span className="max-w-36 truncate">{p.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeFromRoute(p.id)}
+                      aria-label={`Remove ${p.name} from route`}
+                      className="shrink-0 rounded-full p-0.5 text-muted-foreground transition hover:text-destructive"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
 
           <div className="mt-2 flex flex-wrap gap-1.5">
             <FavoritesSheet onOpenPlace={selectById} version={favVersion} />
@@ -526,8 +666,32 @@ function Index() {
                         {r.address}
                       </span>
                     </span>
-                    <span className="ml-auto shrink-0">
+                    <span className="ml-auto flex shrink-0 items-center gap-2">
                       <Stars rating={r.rating} />
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Add ${r.name} to full route`}
+                        title="Add to full route"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addToRoute(r);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            addToRoute(r);
+                          }
+                        }}
+                        className={`rounded-full border p-1.5 transition ${
+                          routePlaces.some((x) => x.id === r.id)
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                        }`}
+                      >
+                        <Plus className="size-3.5" />
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -571,6 +735,7 @@ function Index() {
                 Search any place across Bengaluru — you'll get its rating and real reviews, plus
                 parking nearby, street food stalls, shopping, and the things worth seeing there.
               </p>
+              {routePanel}
             </div>
           ) : (
             <>
@@ -687,6 +852,24 @@ function Index() {
                 </Button>
                 <Button
                   size="sm"
+                  variant={routePlaces.some((x) => x.id === details.id) ? "default" : "outline"}
+                  className="gap-1.5"
+                  aria-pressed={routePlaces.some((x) => x.id === details.id)}
+                  onClick={() =>
+                    routePlaces.some((x) => x.id === details.id)
+                      ? removeFromRoute(details.id)
+                      : addToRoute(details)
+                  }
+                >
+                  {routePlaces.some((x) => x.id === details.id) ? (
+                    <X className="size-4" />
+                  ) : (
+                    <Plus className="size-4" />
+                  )}
+                  {routePlaces.some((x) => x.id === details.id) ? "In route" : "Add to route"}
+                </Button>
+                <Button
+                  size="sm"
                   variant={saved ? "default" : "outline"}
                   className="gap-1.5"
                   aria-pressed={saved}
@@ -700,51 +883,7 @@ function Index() {
                 </Button>
               </div>
 
-              {route ? (
-                <div className="mt-3 rounded-lg border border-border bg-secondary/60 p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold">Travel options</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">From your current location</p>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs font-medium text-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <RouteIcon className="size-3.5 text-primary" /> {route.distanceText}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Clock3 className="size-3.5 text-primary" /> {route.durationText}
-                      </span>
-                    </div>
-                  </div>
-                  {routeStops?.length ? (
-                    <ol className="mt-2 space-y-1 text-xs text-muted-foreground">
-                      <li className="flex items-center gap-1.5">
-                        <span className="inline-block size-1.5 rounded-full bg-primary" /> Start: your location
-                      </li>
-                      {routeStops.map((stop, i) => (
-                        <li key={i} className="flex items-center gap-1.5">
-                          <span className="inline-block size-1.5 rounded-full bg-primary" /> {stop}
-                        </li>
-                      ))}
-                    </ol>
-                  ) : null}
-                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {route.fareEstimates.map((fare) => (
-                      <div key={fare.type} className="rounded-md border border-border bg-card px-3 py-2">
-                        <p className="text-xs text-muted-foreground">{fare.type}</p>
-                        <p className="mt-1 flex items-center gap-0.5 text-sm font-semibold">
-                          <IndianRupee className="size-3.5 text-primary" aria-hidden="true" />
-                          <span className="sr-only">Estimated fare:</span>
-                          {fare.estimateText.replace("₹", "").replace("–₹", "–")}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                    Estimated fares only. Actual prices may vary with demand, waiting, tolls, and provider pricing.
-                  </p>
-                </div>
-              ) : null}
+              {routePanel}
 
               <ExploreNearby key={`${details.id}-${rangeKm}`} details={details} nearby={nearby} rangeKm={rangeKm} session={session} isAdmin={isAdmin} onSelect={selectById} />
 
