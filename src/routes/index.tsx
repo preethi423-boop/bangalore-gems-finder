@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
+import { PlacePhotos } from "@/components/PlacePhotos";
 import { AccountMenu } from "@/components/AccountMenu";
 import { FavoritesSheet } from "@/components/FavoritesSheet";
 import { PromoStrip } from "@/components/PromoStrip";
@@ -650,6 +651,8 @@ function Index() {
                   </a>
                 ) : null}
               </div>
+
+              <PlacePhotos key={details.id} details={details} />
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="outline" onClick={() => { setNearby([]); selectMutation.mutate({ place: details, range: rangeKm, version: ++requestVersion.current }); }} disabled={selectMutation.isPending}><RefreshCw className="size-4" />Refresh details</Button>

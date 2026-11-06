@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { PlaceLite, PlaceDetails, NearbyGroup } from "./places.functions";
 import { explorationSignal } from "./access-session";
+import { photoResource, readPlacePhotos } from "./place-photos";
 
 const PLACES = "https://places.googleapis.com/v1";
 const ROUTES = "https://routes.googleapis.com/directions/v2:computeRoutes";
@@ -93,10 +94,11 @@ export async function searchPlacesWithKey(key: string, query: string): Promise<P
 
 export async function getPlaceDetailsWithKey(key: string, placeId: string): Promise<PlaceDetails> {
   const mask =
-    "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,accessibilityOptions,parkingOptions,regularOpeningHours";
+    "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,photos,accessibilityOptions,parkingOptions,regularOpeningHours";
   const p: any = await call(`${PLACES}/places/${encodeURIComponent(placeId)}`, key, mask);
   return {
     ...toLite(p),
+    photos: readPlacePhotos(p.photos),
     summary: p.editorialSummary?.text,
     phone: p.nationalPhoneNumber,
     website: p.websiteUri,
@@ -111,6 +113,18 @@ export async function getPlaceDetailsWithKey(key: string, placeId: string): Prom
       relative: r.relativePublishTimeDescription ?? "",
     })),
   };
+}
+
+export async function getPlacePhotoWithKey(key: string, name: string): Promise<string> {
+  const resource = photoResource(name);
+  const res = await fetch(`${PLACES}/${resource}/media?maxWidthPx=1200&skipHttpRedirect=true`, {
+    signal: explorationSignal(),
+    headers: { "X-Goog-Api-Key": key },
+  });
+  if (!res.ok) throw new Error(`Photo unavailable (${res.status}).`);
+  const photo = await res.json() as { photoUri?: string };
+  if (!photo.photoUri?.startsWith("https://")) throw new Error("Photo unavailable.");
+  return photo.photoUri;
 }
 
 export async function getNearbyWithKey(

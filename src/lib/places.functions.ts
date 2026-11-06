@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSubscriptionAccess } from "./subscription.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { photoResource, readPlacePhotos, type PlacePhoto } from "./place-photos";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_maps";
 
@@ -23,6 +25,7 @@ export type PlaceReview = {
 };
 
 export type PlaceDetails = PlaceLite & {
+  photos?: PlacePhoto[];
   summary?: string;
   phone?: string;
   website?: string;
@@ -132,7 +135,7 @@ export const getPlaceDetails = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<PlaceDetails> => {
     await requireSubscriptionAccess();
     const mask =
-      "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,accessibilityOptions,parkingOptions,regularOpeningHours";
+      "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,photos,accessibilityOptions,parkingOptions,regularOpeningHours";
     const res = await fetch(`${GATEWAY}/places/v1/places/${encodeURIComponent(data.placeId)}`, {
       headers: buildHeaders(mask),
     });
@@ -144,6 +147,7 @@ export const getPlaceDetails = createServerFn({ method: "POST" })
     const p: any = await res.json();
     return {
       ...toLite(p),
+      photos: readPlacePhotos(p.photos),
       summary: p.editorialSummary?.text,
       phone: p.nationalPhoneNumber,
       website: p.websiteUri,
@@ -158,6 +162,26 @@ export const getPlaceDetails = createServerFn({ method: "POST" })
         relative: r.relativePublishTimeDescription ?? "",
       })),
     };
+  });
+
+export const getPlacePhoto = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { name: string }) => ({ resource: photoResource(String(data.name ?? "")) }))
+  .handler(async ({ data }): Promise<string> => {
+    await requireSubscriptionAccess();
+    const headers = buildHeaders("");
+    const res = await fetch(`${GATEWAY}/places/v1/${data.resource}/media?maxWidthPx=1200&skipHttpRedirect=true`, {
+      headers: { Authorization: headers.Authorization, "X-Connection-Api-Key": headers["X-Connection-Api-Key"] },
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`Place photo failed [${res.status}]: ${body}`);
+      if (res.status === 403) throw new Error("Google denied photo access. Check that the server key allows Places API and has server-compatible restrictions.");
+      throw new Error(`Photo unavailable (${res.status}).`);
+    }
+    const photo = await res.json() as { photoUri?: string };
+    if (!photo.photoUri?.startsWith("https://")) throw new Error("Photo unavailable.");
+    return photo.photoUri;
   });
 
 const CATEGORIES = [
