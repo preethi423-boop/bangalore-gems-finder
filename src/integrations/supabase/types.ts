@@ -180,6 +180,27 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       can_use_subscription_app: { Args: never; Returns: boolean }
+      get_subscription_settings: {
+        Args: never
+        Returns: {
+          currency: string
+          id: boolean
+          monthly_price: number | null
+          paid_mode: boolean
+          trial_days: number
+          trial_duration_days: number
+          updated_at: string
+          upi_id: string | null
+          upi_payee_name: string | null
+          yearly_price: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "subscription_settings"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

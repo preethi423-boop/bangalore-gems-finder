@@ -29,6 +29,13 @@
       "when": 1791606260098,
       "tag": "0003_extended_trials_and_upi_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794841671753,
+      "tag": "0004_restrict_subscription_settings_read",
+      "breakpoints": true
     }
   ]
 }

@@ -10,7 +10,7 @@ export function useSubscription(userId?: string) {
     refetchInterval: 15000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      const { data: settings, error } = await supabase.from("subscription_settings").select("*").eq("id", true).maybeSingle();
+      const { data: settings, error } = await supabase.rpc("get_subscription_settings").maybeSingle();
       if (error) throw error;
       const { data: access, error: accessError } = userId
         ? await supabase.from("subscription_access").select("*").eq("user_id", userId).maybeSingle()
