@@ -1,5 +1,8 @@
 # Roadmap
 
+## EV charging routes
+- [x] Add an opt-in Find route with EV action, charging waypoint, total driving time and station marker; eleven tests passed and signed-in desktop/mobile flow checked with sample Google responses. Live Google map rendering remains unverified locally.
+
 ## Account creation fix (in progress)
 - Signup currently blocked by two checks: weak/breached password rejection, and confirmation-email delivery failures ("could not be delivered recently") that stop accounts from being created.
 - Pending user decision: activate accounts immediately without email confirmation, or keep confirmation and fix email delivery with a sender domain.

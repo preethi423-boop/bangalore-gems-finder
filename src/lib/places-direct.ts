@@ -2,6 +2,7 @@
 import type { PlaceLite, PlaceDetails, NearbyGroup } from "./places.functions";
 import { explorationSignal } from "./access-session";
 import { photoResource, readPlacePhotos } from "./place-photos";
+import { selectEVStation } from "./ev-route";
 
 const PLACES = "https://places.googleapis.com/v1";
 const ROUTES = "https://routes.googleapis.com/directions/v2:computeRoutes";
@@ -154,6 +155,7 @@ export async function getNearbyWithKey(
 }
 
 export type RouteResult = {
+  evStation?: PlaceLite;
   distanceText: string;
   durationText: string;
   fareEstimates: Array<{
@@ -162,6 +164,14 @@ export type RouteResult = {
   }>;
   polyline: string;
 };
+
+export async function computeEVRouteWithKey(key: string, origin: { lat: number; lng: number }, destination: PlaceLite, stations: PlaceLite[], rangeKm: number): Promise<RouteResult> {
+  explorationSignal();
+  const station = selectEVStation(origin, destination, stations, rangeKm);
+  if (!station) throw new Error("no-ev-station");
+  const route = await computeRouteWithKey(key, origin, destination, "DRIVE", [station]);
+  return { ...route, evStation: station };
+}
 
 function estimateFareRange(
   distanceMeters: number,

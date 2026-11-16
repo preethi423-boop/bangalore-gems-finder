@@ -59,6 +59,7 @@ import {
   getPlaceDetailsWithKey,
   getNearbyWithKey,
   computeRouteWithKey,
+  computeEVRouteWithKey,
   type RouteResult,
 } from "@/lib/places-direct";
 import {
@@ -255,6 +256,8 @@ function Index() {
           : "Add your Google API key to get routing."
         : e.message === "no-geo"
           ? "Location permission is needed to build a route."
+          : e.message === "no-ev-station"
+            ? "No car charging station found within the selected range. Refresh nearby places or choose a larger range."
           : "Could not build a route right now.",
     );
 
@@ -305,6 +308,28 @@ function Index() {
       setRouteStops(labels);
       setPlanRouteOn(true);
       setError(null);
+    },
+    onError: routeError,
+  });
+
+  const evRouteMutation = useMutation({
+    mutationFn: async (dest: PlaceDetails) => {
+      explorationSignal();
+      if (!userKey) throw new Error("no-key");
+      const version = requestVersion.current;
+      const stations = nearby.find((g) => g.key === "evcar")?.places ?? [];
+      const origin = await getMyLocation();
+      const r = await computeEVRouteWithKey(userKey, origin, dest, stations, rangeKm);
+      explorationSignal();
+      return { r, version, destinationName: dest.name };
+    },
+    onSuccess: ({ r, version, destinationName }) => {
+      if (version !== requestVersion.current) return;
+      setRoute(r);
+      setRouteStops([`EV charging: ${r.evStation?.name}`, `Visit: ${destinationName}`]);
+      setPlanRouteOn(false);
+      setError(null);
+      setSheet("half");
     },
     onError: routeError,
   });
@@ -457,15 +482,18 @@ function Index() {
     return () => window.removeEventListener("popstate", restore);
   }, [selectMutation.reset, selectByIdMutation.reset, searchMutation.reset, routeMutation.reset]);
 
-  const markers: MapMarker[] = nearby
+  const nearbyMarkers: MapMarker[] = nearby
     .flatMap((g) => g.places.map((p) => ({ ...p, kind: g.key })))
     .slice(0, 40);
+  const markers: MapMarker[] = route?.evStation
+    ? [{ ...route.evStation, kind: "evcar" }, ...nearbyMarkers.filter((p) => p.id !== route.evStation?.id)]
+    : nearbyMarkers;
 
   const routePanel = route ? (
     <div className="mt-3 rounded-lg border border-border bg-secondary/60 p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold">Travel options</p>
+          <p className="text-sm font-semibold">{route.evStation ? "Route with EV charging" : "Travel options"}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">From your current location</p>
         </div>
         <div className="flex items-center gap-3 text-xs font-medium text-foreground">
@@ -489,6 +517,7 @@ function Index() {
           ))}
         </ol>
       ) : null}
+      {route.evStation ? <p className="mt-2 text-xs text-muted-foreground">Total driving time includes the charging detour, not charging or waiting time. Confirm connector compatibility and station availability before travelling.</p> : null}
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {route.fareEstimates.map((fare) => (
           <div key={fare.type} className="rounded-md border border-border bg-card px-3 py-2">
@@ -826,7 +855,7 @@ function Index() {
                   variant="secondary"
                   className="gap-1.5"
                   onClick={() => routeMutation.mutate({ lat: details.lat, lng: details.lng })}
-                  disabled={routeMutation.isPending}
+                  disabled={routeMutation.isPending || evRouteMutation.isPending || planRouteMutation.isPending}
                 >
                   {routeMutation.isPending ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -837,11 +866,22 @@ function Index() {
                 </Button>
                 <Button
                   size="sm"
+                  variant={route?.evStation ? "default" : "outline"}
+                  className="gap-1.5"
+                  aria-pressed={Boolean(route?.evStation)}
+                  onClick={() => evRouteMutation.mutate(details)}
+                  disabled={evRouteMutation.isPending || routeMutation.isPending || planRouteMutation.isPending || selectMutation.isPending}
+                >
+                  {evRouteMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Zap className="size-4" />}
+                  Find route with EV
+                </Button>
+                <Button
+                  size="sm"
                   variant={planRouteOn ? "default" : "outline"}
                   className="gap-1.5"
                   aria-pressed={planRouteOn}
                   onClick={() => planRouteMutation.mutate(details)}
-                  disabled={planRouteMutation.isPending}
+                  disabled={planRouteMutation.isPending || evRouteMutation.isPending || routeMutation.isPending}
                 >
                   {planRouteMutation.isPending ? (
                     <Loader2 className="size-4 animate-spin" />
