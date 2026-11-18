@@ -24,3 +24,4 @@
 - UPI QR codes are generated locally for admin setup previews only until verified payment processing is connected; QR transfers never grant entitlements.
 - When Google rejects a browser Maps key (gm_authFailure), the app marks it rejected for the session, auto-reloads once onto the built-in managed key, shows a banner, and routes search/details/nearby through the server path; saving a new key clears the rejection.
 - EV routes use real car-charging candidates within the selected destination range, ranked by approximate detour and passed as a Routes waypoint; this includes road detours in driving time without claiming charging duration or connector compatibility.
+- Google sign-in uses the Lovable broker on Lovable-hosted origins and direct backend OAuth (owner's own Google client) on self-hosted domains, because the broker's /~oauth paths only exist on Lovable hosting.

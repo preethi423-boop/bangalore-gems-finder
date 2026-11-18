@@ -76,6 +76,18 @@ function AuthPage() {
 
   const google = async () => {
     setMessage(null);
+    const host = window.location.hostname;
+    const lovableHosted =
+      host === "localhost" || host.endsWith(".lovable.app") || host.endsWith(".lovableproject.com");
+    if (!lovableHosted) {
+      // Self-hosted domains use the project's own Google OAuth client directly.
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}${returnTo === "/" ? destination : "/"}` },
+      });
+      if (error) setMessage("Google sign-in failed. Please try again.");
+      return;
+    }
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: `${window.location.origin}${returnTo === "/" ? destination : "/"}`,
     });
