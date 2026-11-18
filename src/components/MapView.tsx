@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Map as MapIcon, Satellite, X } from "lucide-react";
-import type { PlaceLite } from "@/lib/places.functions";
+import { getDefaultMapsKey, type PlaceLite } from "@/lib/places.functions";
 import {
   activeUserKey,
   effectiveMapsKey,
@@ -23,9 +23,15 @@ function loadMaps(): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
   if (window.google?.maps) return Promise.resolve();
   if (loaderPromise) return loaderPromise;
-  loaderPromise = new Promise<void>((resolve, reject) => {
+  loaderPromise = (async () => {
+    let fallback = "";
+    if (!activeUserKey()) {
+      try { fallback = await getDefaultMapsKey(); } catch { /* use built-in */ }
+    }
+    return fallback;
+  })().then((ownDefault) => new Promise<void>((resolve, reject) => {
     const usingUserKey = Boolean(activeUserKey());
-    const key = effectiveMapsKey();
+    const key = activeUserKey() || ownDefault || effectiveMapsKey();
     const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
     window.__initBlrMap = () => resolve();
     // Google calls this global when it rejects the key in use (billing off,
@@ -44,7 +50,8 @@ function loadMaps(): Promise<void> {
     s.async = true;
     s.onerror = () => reject(new Error("Failed to load map"));
     document.head.appendChild(s);
-  });
+  }));
+  loaderPromise.catch(() => { loaderPromise = null; });
   return loaderPromise;
 }
 
