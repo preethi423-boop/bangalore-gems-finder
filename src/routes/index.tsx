@@ -253,7 +253,7 @@ function Index() {
       e.message === "no-key"
         ? getUserKey() && isMapsKeyRejected()
           ? "Your saved Google API key isn't working (check its billing in Google Cloud), so routing is unavailable."
-          : "Add your Google API key to get routing."
+          : "Routing is unavailable right now."
         : e.message === "no-geo"
           ? "Location permission is needed to build a route."
           : e.message === "no-ev-station"
