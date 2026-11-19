@@ -60,12 +60,13 @@ export function shouldRetryAfterKeyFailure(): boolean {
   }
 }
 
-/** The user's key, or "" when Google has rejected it and we fell back. */
+/** The saved key, or the shared admin-configured browser key for new visitors. */
 export function activeUserKey(): string {
-  return isMapsKeyRejected() ? "" : getUserKey();
+  if (isMapsKeyRejected()) return "";
+  return getUserKey() || (import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY ?? "");
 }
 
-/** Falls back to the built-in managed key when the user has not supplied one. */
+/** Falls back to the built-in managed key when no saved key exists. */
 export function effectiveMapsKey(): string {
   return activeUserKey() || (import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY ?? "");
 }
