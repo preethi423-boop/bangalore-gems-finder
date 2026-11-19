@@ -5,17 +5,26 @@ export async function requireSubscriptionAccess() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) throw new Error("Access service is unavailable.");
+
   const authorization = getRequest().headers.get("authorization");
+
+  // Public map requests use the server-side Google Maps key. They do not
+  // require a Supabase session. Authenticated users are still checked below.
+  if (!authorization) return;
+
   const client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { fetch: (input, init) => {
-      const headers = new Headers(init?.headers);
-      headers.delete("Authorization");
-      if (authorization) headers.set("Authorization", authorization);
-      headers.set("apikey", key);
-      return fetch(input, { ...init, headers });
-    } },
+    global: {
+      fetch: (input, init) => {
+        const headers = new Headers(init?.headers);
+        headers.delete("Authorization");
+        if (authorization) headers.set("Authorization", authorization);
+        headers.set("apikey", key);
+        return fetch(input, { ...init, headers });
+      },
+    },
   });
+
   const { data, error } = await client.rpc("can_use_subscription_app");
   if (error || data !== true) throw new Error("Start your free trial or subscribe to continue.");
 }
