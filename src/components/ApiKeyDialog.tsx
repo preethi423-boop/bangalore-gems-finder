@@ -1,26 +1,80 @@
 import { useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { KeyRound } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getAdminMapsSettings, saveAdminMapsSettings } from "@/lib/maps-settings.functions";
-import { clearMapsKeyRejected } from "@/lib/user-key";
+import { clearMapsKeyRejected, getUserKey, setUserKey } from "@/lib/user-key";
 
-export function ApiKeyDialog({ controlledOpen, onControlledOpenChange }: { controlledOpen: boolean; onControlledOpenChange: (open: boolean) => void }) {
-  const [browserKey, setBrowserKey] = useState("");
-  const [serverKey, setServerKey] = useState("");
-  const read = useServerFn(getAdminMapsSettings);
-  const save = useServerFn(saveAdminMapsSettings);
-  const settings = useQuery({ queryKey: ["admin-maps-settings"], queryFn: () => read(), enabled: controlledOpen, retry: false });
-  const mutation = useMutation({ mutationFn: (reset: boolean) => save({ data: { browserKey, serverKey, reset } }), onSuccess: () => { clearMapsKeyRejected(); window.location.reload(); } });
-  return <Dialog open={controlledOpen} onOpenChange={onControlledOpenChange}><DialogContent>
-    <DialogHeader><DialogTitle>Shared Google Maps keys</DialogTitle><DialogDescription>These settings apply to everyone. Existing saved keys remain unchanged when a field is left empty.</DialogDescription></DialogHeader>
-    <label className="space-y-2 text-sm">Map display key<Input type="password" value={browserKey} onChange={e => setBrowserKey(e.target.value)} placeholder={settings.data?.browserConfigured ? "Configured — enter a replacement" : "AIza…"} autoComplete="off" spellCheck={false} aria-label="Map display key" /></label>
-    <p className="text-xs text-muted-foreground">Enable Maps JavaScript API and allow your website addresses. Google needs this key in visitors’ browsers to display maps.</p>
-    <label className="space-y-2 text-sm">Search and routes server key<Input type="password" value={serverKey} onChange={e => setServerKey(e.target.value)} placeholder={settings.data?.serverConfigured ? "Configured — enter a replacement" : "AIza…"} autoComplete="off" spellCheck={false} aria-label="Search and routes server key" /></label>
-    <p className="text-xs text-muted-foreground">Enable Places API (New) and Routes API. Use a separate key without website restrictions; this key stays on the server.</p>
-    {settings.isError || mutation.isError ? <p role="alert" className="text-sm text-destructive">{(mutation.error ?? settings.error)?.message}</p> : null}
-    <DialogFooter><Button variant="outline" disabled={mutation.isPending || !settings.data} onClick={() => mutation.mutate(true)}>Restore defaults</Button><Button disabled={mutation.isPending || !settings.data || (!browserKey.trim() && !serverKey.trim())} onClick={() => mutation.mutate(false)}>{mutation.isPending ? "Saving…" : "Save for everyone"}</Button></DialogFooter>
-  </DialogContent></Dialog>;
+export function ApiKeyDialog({ hasKey, controlledOpen, onControlledOpenChange }: { hasKey: boolean; controlledOpen?: boolean; onControlledOpenChange?: (open: boolean) => void }) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const setOpen = onControlledOpenChange ?? setLocalOpen;
+  const [value, setValue] = useState("");
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) setValue(getUserKey());
+      }}
+    >
+      {controlledOpen === undefined ? <DialogTrigger asChild>
+        <button
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
+          aria-label="Google API key settings"
+        >
+          <KeyRound className="size-3.5" />
+          {hasKey ? "Your API key" : "Add your Google API key"}
+        </button>
+      </DialogTrigger> : null}
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Your Google Maps API key</DialogTitle>
+          <DialogDescription>
+            Paste a Google Cloud API key with Maps JavaScript API, Places API (New) and Routes API
+            enabled. It stays on this device and is used for the map, search, place details and
+            routing.
+          </DialogDescription>
+        </DialogHeader>
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="AIza…"
+          autoComplete="off"
+          spellCheck={false}
+          aria-label="Google API key"
+        />
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setUserKey("");
+              clearMapsKeyRejected();
+              window.location.reload();
+            }}
+          >
+            Remove key
+          </Button>
+          <Button
+            onClick={() => {
+              setUserKey(value);
+              clearMapsKeyRejected();
+              window.location.reload();
+            }}
+          >
+            Save & reload
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

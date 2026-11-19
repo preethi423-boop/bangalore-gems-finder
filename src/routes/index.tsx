@@ -48,18 +48,22 @@ import { SubscriptionGate } from "@/components/SubscriptionGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { selectEVStation } from "@/lib/ev-route";
-import { uniqueMapPlaces } from "@/lib/map-selection";
+import { activeUserKey, getUserKey, isMapsKeyRejected } from "@/lib/user-key";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 import { useAuth } from "@/hooks/useAuth";
 import { explorationSignal } from "@/lib/access-session";
 
 
-import type { RouteResult } from "@/lib/places-direct";
+import {
+  searchPlacesWithKey,
+  getPlaceDetailsWithKey,
+  getNearbyWithKey,
+  computeRouteWithKey,
+  computeEVRouteWithKey,
+  type RouteResult,
+} from "@/lib/places-direct";
 import {
   searchPlaces,
-  findMapPlaces,
-  computeSharedRoute,
   getPlaceDetails,
   getNearby,
   type PlaceLite,
@@ -153,6 +157,7 @@ function Index() {
   const [nearby, setNearby] = useState<NearbyGroup[]>([]);
   const [center, setCenter] = useState(BLR);
   const [error, setError] = useState<string | null>(null);
+  const [userKey, setUserKeyState] = useState("");
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [routeStops, setRouteStops] = useState<string[] | null>(null);
   const [planRouteOn, setPlanRouteOn] = useState(false);
@@ -192,25 +197,15 @@ function Index() {
     setSheet(order[i]);
   };
 
+  useEffect(() => setUserKeyState(activeUserKey()), []);
 
   const doSearch = useServerFn(searchPlaces);
   const doDetails = useServerFn(getPlaceDetails);
   const doNearby = useServerFn(getNearby);
-  const doRoute = useServerFn(computeSharedRoute);
-  const doMapPlaces = useServerFn(findMapPlaces);
-  const mapTapMutation = useMutation({
-    mutationFn: async ({ location, version }: { location: { lat: number; lng: number }; version: number }) => ({ data: await doMapPlaces({ data: location }), version }),
-    onSuccess: ({ data, version }) => {
-      if (version !== searchVersion.current) return;
-      setResults(data);
-      setError(data.length ? null : "No listed places found at that point. Try a nearby spot or search by name.");
-    },
-    onError: (_, { version }) => { if (version === searchVersion.current) setError(session ? "Could not find places at that point. Please try again." : "Sign in to select places by tapping the map."); },
-  });
 
   const searchMutation = useMutation({
     mutationFn: async ({ q, version }: { q: string; version: number }) => ({
-      data: await doSearch({ data: { query: q } }), version,
+      data: await (userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } })), version,
     }),
     onSuccess: ({ data, version }) => {
       if (version !== searchVersion.current) return;
@@ -223,16 +218,13 @@ function Index() {
   const selectMutation = useMutation({
     mutationFn: async ({ place, range, version }: { place: PlaceLite; range: number; version: number }) => {
       explorationSignal();
-      const showDetails = (d: PlaceDetails) => {
-        if (version !== requestVersion.current) return;
-        setDetails(d);
-        setLastPlace(d);
-        setCenter({ lat: d.lat, lng: d.lng });
-        setError(null);
-      };
       const [d, n] = await Promise.all([
-        doDetails({ data: { placeId: place.id } }).then(d => { showDetails(d); return d; }),
-        doNearby({ data: { lat: place.lat, lng: place.lng, rangeKm: range } }),
+        userKey
+          ? getPlaceDetailsWithKey(userKey, place.id)
+          : doDetails({ data: { placeId: place.id } }),
+        userKey
+          ? getNearbyWithKey(userKey, place.lat, place.lng, range)
+          : doNearby({ data: { lat: place.lat, lng: place.lng, rangeKm: range } }),
       ]);
       return { d, n, version };
     },
@@ -258,7 +250,11 @@ function Index() {
 
   const routeError = (e: Error) =>
     setError(
-      e.message === "no-geo"
+      e.message === "no-key"
+        ? getUserKey() && isMapsKeyRejected()
+          ? "Your saved Google API key isn't working (check its billing in Google Cloud), so routing is unavailable."
+          : "Add your Google API key to get routing."
+        : e.message === "no-geo"
           ? "Location permission is needed to build a route."
           : e.message === "no-ev-station"
             ? "No car charging station found within the selected range. Refresh nearby places or choose a larger range."
@@ -268,8 +264,10 @@ function Index() {
   const routeMutation = useMutation({
     mutationFn: async (dest: { lat: number; lng: number }) => {
       explorationSignal();
+      const key = userKey;
+      if (!key) throw new Error("no-key");
       const origin = await getMyLocation();
-      return doRoute({ data: { origin, destination: dest } });
+      return computeRouteWithKey(key, origin, dest, "DRIVE");
     },
     onSuccess: (r) => {
       setRoute(r);
@@ -283,6 +281,8 @@ function Index() {
   const planRouteMutation = useMutation({
     mutationFn: async (dest: PlaceDetails) => {
       explorationSignal();
+      const key = userKey;
+      if (!key) throw new Error("no-key");
       const origin = await getMyLocation();
       const stops: Array<{ lat: number; lng: number }> = [];
       const labels: string[] = [];
@@ -300,7 +300,7 @@ function Index() {
         }
       }
       labels.push(`Visit: ${dest.name}`);
-      const r = await doRoute({ data: { origin, destination: { lat: dest.lat, lng: dest.lng }, intermediates: stops } });
+      const r = await computeRouteWithKey(key, origin, { lat: dest.lat, lng: dest.lng }, "DRIVE", stops);
       return { r, labels };
     },
     onSuccess: ({ r, labels }) => {
@@ -315,12 +315,11 @@ function Index() {
   const evRouteMutation = useMutation({
     mutationFn: async (dest: PlaceDetails) => {
       explorationSignal();
+      if (!userKey) throw new Error("no-key");
       const version = requestVersion.current;
       const stations = nearby.find((g) => g.key === "evcar")?.places ?? [];
       const origin = await getMyLocation();
-      const station = selectEVStation(origin, dest, stations, rangeKm);
-      if (!station) throw new Error("no-ev-station");
-      const r = { ...await doRoute({ data: { origin, destination: { lat: dest.lat, lng: dest.lng }, intermediates: [{ lat: station.lat, lng: station.lng }] } }), evStation: station };
+      const r = await computeEVRouteWithKey(userKey, origin, dest, stations, rangeKm);
       explorationSignal();
       return { r, version, destinationName: dest.name };
     },
@@ -346,11 +345,19 @@ function Index() {
   const fullRouteMutation = useMutation({
     mutationFn: async (places: PlaceLite[]) => {
       explorationSignal();
+      const key = userKey;
+      if (!key) throw new Error("no-key");
       if (!places.length) throw new Error("no-stops");
       const origin = await getMyLocation();
       const destination = places[places.length - 1];
       const intermediates = places.slice(0, -1).map((p) => ({ lat: p.lat, lng: p.lng }));
-      const r = await doRoute({ data: { origin, destination: { lat: destination.lat, lng: destination.lng }, intermediates } });
+      const r = await computeRouteWithKey(
+        key,
+        origin,
+        { lat: destination.lat, lng: destination.lng },
+        "DRIVE",
+        intermediates,
+      );
       return { r, labels: places.map((p, i) => `Stop ${i + 1}: ${p.name}`) };
     },
     onSuccess: ({ r, labels }) => {
@@ -392,7 +399,7 @@ function Index() {
       setPlanRouteOn(false);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
-      setSheet("half");
+      setSheet("peek");
       setFullMap(false);
       selectMutation.mutate({ place: p, range: rangeKm, version: ++requestVersion.current });
     },
@@ -402,15 +409,13 @@ function Index() {
   const selectByIdMutation = useMutation({
     mutationFn: async ({ placeId, range, version }: { placeId: string; range: number; version: number }) => {
       explorationSignal();
-      const d = await doDetails({ data: { placeId } });
-      if (version === requestVersion.current) {
-        setDetails(d);
-        setLastPlace(d);
-        setCenter({ lat: d.lat, lng: d.lng });
-        setError(null);
-      }
+      const d = userKey
+        ? await getPlaceDetailsWithKey(userKey, placeId)
+        : await doDetails({ data: { placeId } });
       explorationSignal();
-      const n = await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
+      const n = userKey
+        ? await getNearbyWithKey(userKey, d.lat, d.lng, range)
+        : await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
       return { d, n, version };
     },
     onSuccess: ({ d, n, version }) => {
@@ -468,40 +473,21 @@ function Index() {
       const previous = event.state?.nammaSpot as MapSnapshot | undefined;
       if (!previous) return;
       ++requestVersion.current; ++searchVersion.current;
-      selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset(); mapTapMutation.reset();
+      selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset();
       setQuery(previous.query); setResults(previous.results); setDetails(previous.details); setNearby(previous.nearby);
       setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setPlanRouteOn(false); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
       setSheet(previous.sheet); setFullMap(previous.fullMap); setDepth(previous.depth); setError(null);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [selectMutation.reset, selectByIdMutation.reset, searchMutation.reset, routeMutation.reset, mapTapMutation.reset]);
+  }, [selectMutation.reset, selectByIdMutation.reset, searchMutation.reset, routeMutation.reset]);
 
   const nearbyMarkers: MapMarker[] = nearby
     .flatMap((g) => g.places.map((p) => ({ ...p, kind: g.key })))
     .slice(0, 40);
-  const baseMarkers: MapMarker[] = route?.evStation
+  const markers: MapMarker[] = route?.evStation
     ? [{ ...route.evStation, kind: "evcar" }, ...nearbyMarkers.filter((p) => p.id !== route.evStation?.id)]
     : nearbyMarkers;
-  const markers = uniqueMapPlaces([...baseMarkers, ...results]);
-
-  const selectMapLocation = (location: { lat: number; lng: number }) => {
-    explorationSignal();
-    ++requestVersion.current;
-    setDetails(null);
-    setNearby([]);
-    setLastPlace(null);
-    setRoute(null);
-    setRouteStops(null);
-    setPlanRouteOn(false);
-    setCenter(location);
-    setResults([]);
-    setQuery("");
-    setError(null);
-    setFullMap(false);
-    setSheet("half");
-    mapTapMutation.mutate({ location, version: ++searchVersion.current });
-  };
 
   const routePanel = route ? (
     <div className="mt-3 rounded-lg border border-border bg-secondary/60 p-3">
@@ -559,7 +545,6 @@ function Index() {
           markers={markers}
           onMarkerClick={(p) => select(p)}
           onPoiSelect={selectById}
-          onLocationSelect={selectMapLocation}
           routePolyline={route?.polyline ?? null}
           threeD={Boolean(details)}
         />
@@ -598,7 +583,7 @@ function Index() {
             <Button type="submit" size="sm" className="rounded-full px-4">
               {searchMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : "Go"}
             </Button>
-          </form><AccountMenu signedIn={Boolean(session)} isAdmin={isAdmin} /></div>
+          </form><AccountMenu signedIn={Boolean(session)} isAdmin={isAdmin} hasKey={Boolean(userKey)} /></div>
 
           {routePlaces.length > 0 ? (
             <div className="mt-2 rounded-2xl border border-border bg-card/95 p-2.5 shadow-[var(--shadow-card)] backdrop-blur">
@@ -768,7 +753,7 @@ function Index() {
 
           {depth > 0 ? <Button size="sm" variant="ghost" className="mb-2" onClick={() => window.history.back()}><ArrowLeft className="size-4" />Back</Button> : null}
 
-          {!details && (selectMutation.isPending || selectByIdMutation.isPending || mapTapMutation.isPending) ? (
+          {selectMutation.isPending || selectByIdMutation.isPending ? (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Gathering parking, street food and sights…
             </p>

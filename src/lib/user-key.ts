@@ -60,12 +60,12 @@ export function shouldRetryAfterKeyFailure(): boolean {
   }
 }
 
-/** Deprecated: personal keys never override site-wide settings. */
+/** The user's key, or "" when Google has rejected it and we fell back. */
 export function activeUserKey(): string {
-  return "";
+  return isMapsKeyRejected() ? "" : getUserKey();
 }
 
 /** Falls back to the built-in managed key when the user has not supplied one. */
 export function effectiveMapsKey(): string {
-  return import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY ?? "";
+  return activeUserKey() || (import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY ?? "");
 }

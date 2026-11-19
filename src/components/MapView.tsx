@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Map as MapIcon, Satellite, X } from "lucide-react";
 import { getDefaultMapsKey, type PlaceLite } from "@/lib/places.functions";
-import { Button } from "@/components/ui/button";
-import { mapPresentation } from "@/lib/maps-policy";
 import {
+  activeUserKey,
   effectiveMapsKey,
   isMapsKeyRejected,
   markMapsKeyRejected,
@@ -26,19 +25,19 @@ function loadMaps(): Promise<void> {
   if (loaderPromise) return loaderPromise;
   loaderPromise = (async () => {
     let fallback = "";
-    if (!isMapsKeyRejected()) {
+    if (!activeUserKey()) {
       try { fallback = await getDefaultMapsKey(); } catch { /* use built-in */ }
     }
     return fallback;
   })().then((ownDefault) => new Promise<void>((resolve, reject) => {
-    const usingSharedKey = Boolean(ownDefault);
-    const key = ownDefault || effectiveMapsKey();
+    const usingUserKey = Boolean(activeUserKey());
+    const key = activeUserKey() || ownDefault || effectiveMapsKey();
     const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
     window.__initBlrMap = () => resolve();
     // Google calls this global when it rejects the key in use (billing off,
     // referrer restrictions, disabled API). Fall back to the built-in key.
     window.gm_authFailure = () => {
-      if (usingSharedKey) markMapsKeyRejected();
+      if (usingUserKey) markMapsKeyRejected();
       if (shouldRetryAfterKeyFailure()) {
         window.location.reload();
         return;
@@ -75,7 +74,6 @@ type Props = {
   markers: MapMarker[];
   onMarkerClick?: (p: PlaceLite) => void;
   onPoiSelect?: (placeId: string) => void;
-  onLocationSelect?: (location: { lat: number; lng: number }) => void;
   routePolyline?: string | null;
   threeD?: boolean;
 };
@@ -86,7 +84,6 @@ export function MapView({
   markers,
   onMarkerClick,
   onPoiSelect,
-  onLocationSelect,
   routePolyline,
   threeD,
 }: Props) {
@@ -96,10 +93,9 @@ export function MapView({
   const line = useRef<any>(null);
   const poiRef = useRef(onPoiSelect);
   poiRef.current = onPoiSelect;
-  const locationRef = useRef(onLocationSelect);
-  locationRef.current = onLocationSelect;
-  const [ready, setReady] = useState(false);
   const [satellite, setSatellite] = useState(false);
+  const satelliteRef = useRef(satellite);
+  satelliteRef.current = satellite;
   // Set client-side only to avoid an SSR hydration mismatch.
   const [keyNotice, setKeyNotice] = useState(false);
   useEffect(() => {
@@ -122,24 +118,18 @@ export function MapView({
             zoom: 14,
             disableDefaultUI: true,
             zoomControl: true,
-            mapTypeId: "roadmap",
-            clickableIcons: false,
-            styles: [{ featureType: "poi", stylers: [{ visibility: "off" }] }],
             rotateControl: true,
             tiltInteractionEnabled: true,
             gestureHandling: "greedy",
           });
-          // Never request implicit browser Places details; resolve taps on the server.
+          // Tapping any Google POI on the map loads that place's full details.
           map.current.addListener("click", (e: any) => {
             if (e?.placeId) {
               e.stop?.();
               poiRef.current?.(e.placeId);
-            } else if (e?.latLng) {
-              locationRef.current?.({ lat: e.latLng.lat(), lng: e.latLng.lng() });
             }
           });
         }
-        setReady(true);
       })
       .catch((e) => {
         console.error(e);
@@ -153,11 +143,12 @@ export function MapView({
   useEffect(() => {
     if (!map.current) return;
     map.current.panTo(center);
-  }, [center.lat, center.lng, ready]);
+  }, [center.lat, center.lng]);
 
-  // Every new selection starts in normal view; satellite is opt-in.
+  // Swap to a tilted 3D aerial view once a place is selected.
   useEffect(() => {
-    setSatellite(false);
+    if (threeD) setSatellite(true);
+    else setSatellite(false);
   }, [threeD, center.lat, center.lng]);
 
   useEffect(() => {
@@ -168,22 +159,21 @@ export function MapView({
         return;
       }
       map.current.setMapTypeId(
-        mapPresentation(Boolean(threeD), satellite).type
+        satellite ? window.google.maps.MapTypeId.HYBRID : window.google.maps.MapTypeId.ROADMAP
       );
     };
     apply();
     return () => clearTimeout(raf);
-  }, [satellite, threeD]);
+  }, [satellite]);
 
   useEffect(() => {
     let raf = 0;
-    const listeners: any[] = [];
     const apply = () => {
       if (!map.current || !window.google) {
         raf = window.setTimeout(apply, 200) as unknown as number;
         return;
       }
-      if (threeD && satellite) {
+      if (threeD) {
         map.current.setCenter(center);
         map.current.setZoom(19);
         // 45° aerial imagery only kicks in once the tiles for this zoom exist,
@@ -193,27 +183,23 @@ export function MapView({
           map.current.setHeading(45);
         };
         tiltIn();
-        listeners.push(window.google.maps.event.addListenerOnce(map.current, "tilesloaded", tiltIn));
-        listeners.push(window.google.maps.event.addListenerOnce(map.current, "idle", tiltIn));
+        window.google.maps.event.addListenerOnce(map.current, "tilesloaded", tiltIn);
+        window.google.maps.event.addListenerOnce(map.current, "idle", tiltIn);
       } else {
         map.current.setTilt(0);
         map.current.setHeading(0);
-        map.current.setZoom(threeD ? 19 : 14);
+        map.current.setZoom(14);
       }
     };
     apply();
-    return () => {
-      clearTimeout(raf);
-      listeners.forEach(listener => listener.remove());
-    };
-  }, [threeD, satellite, center.lat, center.lng]);
+    return () => clearTimeout(raf);
+  }, [threeD, center.lat, center.lng]);
 
   useEffect(() => {
     if (!map.current || !window.google) return;
     drawn.current.forEach((m) => m.setMap(null));
     drawn.current = [];
     const all: MapMarker[] = [...(main ? [{ ...main, kind: "main" }] : []), ...markers];
-    const listeners: any[] = [];
     all.forEach((p) => {
       const style = MARKER_STYLE[p.kind ?? ""] ?? { color: "#0f766e", glyph: "" };
       const isMain = p.kind === "main";
@@ -234,15 +220,10 @@ export function MapView({
           strokeWeight: 2,
         },
       });
-      listeners.push(marker.addListener("click", () => onMarkerClick?.(p)));
+      marker.addListener("click", () => onMarkerClick?.(p));
       drawn.current.push(marker);
     });
-    return () => {
-      listeners.forEach(listener => listener.remove());
-      drawn.current.forEach(marker => marker.setMap(null));
-      drawn.current = [];
-    };
-  }, [main, markers, onMarkerClick, ready]);
+  }, [main?.id, markers, onMarkerClick]);
 
   useEffect(() => {
     if (!map.current || !window.google?.maps?.geometry) return;
@@ -262,7 +243,7 @@ export function MapView({
     const bounds = new window.google.maps.LatLngBounds();
     path.forEach((pt: any) => bounds.extend(pt));
     map.current.fitBounds(bounds, 60);
-  }, [routePolyline, ready]);
+  }, [routePolyline]);
 
   return (
     <div className="relative h-full w-full">
@@ -273,21 +254,22 @@ export function MapView({
         >
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
           <p className="text-muted-foreground">
-            Google Maps could not use the site's configured key. A built-in map is used where available.
-            Please ask the administrator to check Google billing and website restrictions.
+            Your Google Maps key isn't working (billing may be off or restrictions block this site).
+            The app is using its built-in map key instead — enable billing for your key in Google
+            Cloud or update it in the API key settings.
           </p>
-          <Button
+          <button
             type="button"
             aria-label="Dismiss map key notice"
             onClick={() => setKeyNotice(false)}
             className="ml-auto rounded p-0.5 text-muted-foreground transition hover:text-foreground"
           >
             <X className="size-4" />
-          </Button>
+          </button>
         </div>
       ) : null}
       <div ref={el} className="h-full w-full" aria-label="Map of the selected place" />
-      <Button
+      <button
         type="button"
         onClick={() => setSatellite((s) => !s)}
         aria-pressed={satellite}
@@ -296,7 +278,7 @@ export function MapView({
       >
         {satellite ? <MapIcon className="size-4" /> : <Satellite className="size-4" />}
         {satellite ? "Normal" : "Satellite"}
-      </Button>
+      </button>
       {legend.length ? (
         <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-xl border border-border bg-card/90 p-2 text-[11px] shadow-[var(--shadow-card)] backdrop-blur">
           <p className="mb-1 font-semibold text-card-foreground">Map legend</p>
