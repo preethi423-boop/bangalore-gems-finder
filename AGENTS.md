@@ -14,6 +14,7 @@
 - Recommendations are ID-grounded to the selected location's attraction, food and shopping candidates, with distance filtering and output validation to prevent invented place links.
 - Durable AI failure state is server-only; gateway credit/access blocks pause requests until a verified admin explicitly resumes after restoration.
 - Place navigation stores map/search snapshots in browser history and ignores superseded requests so Back restores the previous view without stale place updates.
+- Resolve map-coordinate taps through authenticated bounded Nearby Search; visitors choose a returned place rather than assigning nearby business details to arbitrary coordinates. Reconcile app-owned markers on map readiness and result changes, with browser POI lookups disabled.
 - Sponsored offers remain site-wide admin content and are periodically refreshed; never label them as location-targeted without location data.
 - Subscription access is database-authoritative: admin-controlled settings, once-per-account explicit trials, and service-only paid entitlements; server Maps and AI calls verify access; shared browser map rendering remains behind the UI gate.
 - Do not activate purchase controls or grant paid access until a real payment provider verifies purchases; Play Store and UPI setup is pending and displayed as unavailable.

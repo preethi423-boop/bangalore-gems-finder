@@ -75,6 +75,7 @@ type Props = {
   markers: MapMarker[];
   onMarkerClick?: (p: PlaceLite) => void;
   onPoiSelect?: (placeId: string) => void;
+  onLocationSelect?: (location: { lat: number; lng: number }) => void;
   routePolyline?: string | null;
   threeD?: boolean;
 };
@@ -85,6 +86,7 @@ export function MapView({
   markers,
   onMarkerClick,
   onPoiSelect,
+  onLocationSelect,
   routePolyline,
   threeD,
 }: Props) {
@@ -94,6 +96,9 @@ export function MapView({
   const line = useRef<any>(null);
   const poiRef = useRef(onPoiSelect);
   poiRef.current = onPoiSelect;
+  const locationRef = useRef(onLocationSelect);
+  locationRef.current = onLocationSelect;
+  const [ready, setReady] = useState(false);
   const [satellite, setSatellite] = useState(false);
   // Set client-side only to avoid an SSR hydration mismatch.
   const [keyNotice, setKeyNotice] = useState(false);
@@ -119,18 +124,22 @@ export function MapView({
             zoomControl: true,
             mapTypeId: "roadmap",
             clickableIcons: false,
+            styles: [{ featureType: "poi", stylers: [{ visibility: "off" }] }],
             rotateControl: true,
             tiltInteractionEnabled: true,
             gestureHandling: "greedy",
           });
-          // Tapping any Google POI on the map loads that place's full details.
+          // Never request implicit browser Places details; resolve taps on the server.
           map.current.addListener("click", (e: any) => {
             if (e?.placeId) {
               e.stop?.();
               poiRef.current?.(e.placeId);
+            } else if (e?.latLng) {
+              locationRef.current?.({ lat: e.latLng.lat(), lng: e.latLng.lng() });
             }
           });
         }
+        setReady(true);
       })
       .catch((e) => {
         console.error(e);
@@ -144,7 +153,7 @@ export function MapView({
   useEffect(() => {
     if (!map.current) return;
     map.current.panTo(center);
-  }, [center.lat, center.lng]);
+  }, [center.lat, center.lng, ready]);
 
   // Every new selection starts in normal view; satellite is opt-in.
   useEffect(() => {
@@ -204,6 +213,7 @@ export function MapView({
     drawn.current.forEach((m) => m.setMap(null));
     drawn.current = [];
     const all: MapMarker[] = [...(main ? [{ ...main, kind: "main" }] : []), ...markers];
+    const listeners: any[] = [];
     all.forEach((p) => {
       const style = MARKER_STYLE[p.kind ?? ""] ?? { color: "#0f766e", glyph: "" };
       const isMain = p.kind === "main";
@@ -224,10 +234,15 @@ export function MapView({
           strokeWeight: 2,
         },
       });
-      marker.addListener("click", () => onMarkerClick?.(p));
+      listeners.push(marker.addListener("click", () => onMarkerClick?.(p)));
       drawn.current.push(marker);
     });
-  }, [main?.id, markers, onMarkerClick]);
+    return () => {
+      listeners.forEach(listener => listener.remove());
+      drawn.current.forEach(marker => marker.setMap(null));
+      drawn.current = [];
+    };
+  }, [main, markers, onMarkerClick, ready]);
 
   useEffect(() => {
     if (!map.current || !window.google?.maps?.geometry) return;
@@ -247,7 +262,7 @@ export function MapView({
     const bounds = new window.google.maps.LatLngBounds();
     path.forEach((pt: any) => bounds.extend(pt));
     map.current.fitBounds(bounds, 60);
-  }, [routePolyline]);
+  }, [routePolyline, ready]);
 
   return (
     <div className="relative h-full w-full">

@@ -49,6 +49,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { selectEVStation } from "@/lib/ev-route";
+import { uniqueMapPlaces } from "@/lib/map-selection";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 import { useAuth } from "@/hooks/useAuth";
 import { explorationSignal } from "@/lib/access-session";
@@ -57,6 +58,7 @@ import { explorationSignal } from "@/lib/access-session";
 import type { RouteResult } from "@/lib/places-direct";
 import {
   searchPlaces,
+  findMapPlaces,
   computeSharedRoute,
   getPlaceDetails,
   getNearby,
@@ -195,6 +197,16 @@ function Index() {
   const doDetails = useServerFn(getPlaceDetails);
   const doNearby = useServerFn(getNearby);
   const doRoute = useServerFn(computeSharedRoute);
+  const doMapPlaces = useServerFn(findMapPlaces);
+  const mapTapMutation = useMutation({
+    mutationFn: async ({ location, version }: { location: { lat: number; lng: number }; version: number }) => ({ data: await doMapPlaces({ data: location }), version }),
+    onSuccess: ({ data, version }) => {
+      if (version !== searchVersion.current) return;
+      setResults(data);
+      setError(data.length ? null : "No listed places found at that point. Try a nearby spot or search by name.");
+    },
+    onError: (_, { version }) => { if (version === searchVersion.current) setError(session ? "Could not find places at that point. Please try again." : "Sign in to select places by tapping the map."); },
+  });
 
   const searchMutation = useMutation({
     mutationFn: async ({ q, version }: { q: string; version: number }) => ({
@@ -211,8 +223,15 @@ function Index() {
   const selectMutation = useMutation({
     mutationFn: async ({ place, range, version }: { place: PlaceLite; range: number; version: number }) => {
       explorationSignal();
+      const showDetails = (d: PlaceDetails) => {
+        if (version !== requestVersion.current) return;
+        setDetails(d);
+        setLastPlace(d);
+        setCenter({ lat: d.lat, lng: d.lng });
+        setError(null);
+      };
       const [d, n] = await Promise.all([
-        doDetails({ data: { placeId: place.id } }),
+        doDetails({ data: { placeId: place.id } }).then(d => { showDetails(d); return d; }),
         doNearby({ data: { lat: place.lat, lng: place.lng, rangeKm: range } }),
       ]);
       return { d, n, version };
@@ -373,7 +392,7 @@ function Index() {
       setPlanRouteOn(false);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
-      setSheet("peek");
+      setSheet("half");
       setFullMap(false);
       selectMutation.mutate({ place: p, range: rangeKm, version: ++requestVersion.current });
     },
@@ -384,6 +403,12 @@ function Index() {
     mutationFn: async ({ placeId, range, version }: { placeId: string; range: number; version: number }) => {
       explorationSignal();
       const d = await doDetails({ data: { placeId } });
+      if (version === requestVersion.current) {
+        setDetails(d);
+        setLastPlace(d);
+        setCenter({ lat: d.lat, lng: d.lng });
+        setError(null);
+      }
       explorationSignal();
       const n = await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
       return { d, n, version };
@@ -443,21 +468,40 @@ function Index() {
       const previous = event.state?.nammaSpot as MapSnapshot | undefined;
       if (!previous) return;
       ++requestVersion.current; ++searchVersion.current;
-      selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset();
+      selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset(); mapTapMutation.reset();
       setQuery(previous.query); setResults(previous.results); setDetails(previous.details); setNearby(previous.nearby);
       setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setPlanRouteOn(false); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
       setSheet(previous.sheet); setFullMap(previous.fullMap); setDepth(previous.depth); setError(null);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [selectMutation.reset, selectByIdMutation.reset, searchMutation.reset, routeMutation.reset]);
+  }, [selectMutation.reset, selectByIdMutation.reset, searchMutation.reset, routeMutation.reset, mapTapMutation.reset]);
 
   const nearbyMarkers: MapMarker[] = nearby
     .flatMap((g) => g.places.map((p) => ({ ...p, kind: g.key })))
     .slice(0, 40);
-  const markers: MapMarker[] = route?.evStation
+  const baseMarkers: MapMarker[] = route?.evStation
     ? [{ ...route.evStation, kind: "evcar" }, ...nearbyMarkers.filter((p) => p.id !== route.evStation?.id)]
     : nearbyMarkers;
+  const markers = uniqueMapPlaces([...baseMarkers, ...results]);
+
+  const selectMapLocation = (location: { lat: number; lng: number }) => {
+    explorationSignal();
+    ++requestVersion.current;
+    setDetails(null);
+    setNearby([]);
+    setLastPlace(null);
+    setRoute(null);
+    setRouteStops(null);
+    setPlanRouteOn(false);
+    setCenter(location);
+    setResults([]);
+    setQuery("");
+    setError(null);
+    setFullMap(false);
+    setSheet("half");
+    mapTapMutation.mutate({ location, version: ++searchVersion.current });
+  };
 
   const routePanel = route ? (
     <div className="mt-3 rounded-lg border border-border bg-secondary/60 p-3">
@@ -515,6 +559,7 @@ function Index() {
           markers={markers}
           onMarkerClick={(p) => select(p)}
           onPoiSelect={selectById}
+          onLocationSelect={selectMapLocation}
           routePolyline={route?.polyline ?? null}
           threeD={Boolean(details)}
         />
@@ -723,7 +768,7 @@ function Index() {
 
           {depth > 0 ? <Button size="sm" variant="ghost" className="mb-2" onClick={() => window.history.back()}><ArrowLeft className="size-4" />Back</Button> : null}
 
-          {selectMutation.isPending || selectByIdMutation.isPending ? (
+          {!details && (selectMutation.isPending || selectByIdMutation.isPending || mapTapMutation.isPending) ? (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Gathering parking, street food and sights…
             </p>

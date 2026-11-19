@@ -1,5 +1,8 @@
 # Roadmap
 
+## Map selection
+- [x] Restore location selection through map taps and search-result markers; show matching details promptly and reconcile markers after map readiness. Ten tests and compilation passed; Google-dependent selection still needs validation on an authorized deployed origin.
+
 ## Shared map settings
 - [x] Restrict Google API settings to admins, persist shared keys for all visitors, remove personal-key dependencies, and default selected places to normal view. Rule tests and signed-in admin/mobile checks passed; live Google Maps must be checked on an authorized deployed origin.
 

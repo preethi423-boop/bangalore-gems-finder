@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSubscriptionAccess } from "./subscription.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { photoResource, readPlacePhotos, type PlacePhoto } from "./place-photos";
+import { mapTapLocation } from "./map-selection";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_maps";
 
@@ -125,6 +126,19 @@ const LITE_MASK =
   "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.primaryTypeDisplayName";
 
 const BLR = { latitude: 12.9716, longitude: 77.5946 };
+
+export const findMapPlaces = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(mapTapLocation)
+  .handler(async ({ data }): Promise<PlaceLite[]> => {
+    const json = await gateway("/places/v1/places:searchNearby", LITE_MASK, {
+      locationRestriction: { circle: { center: { latitude: data.lat, longitude: data.lng }, radius: 150 } },
+      maxResultCount: 8,
+      rankPreference: "DISTANCE",
+      languageCode: "en",
+    });
+    return (json.places ?? []).map(toLite);
+  });
 
 export const searchPlaces = createServerFn({ method: "POST" })
   .inputValidator((data: { query: string }) => ({ query: String(data.query ?? "").slice(0, 120) }))
