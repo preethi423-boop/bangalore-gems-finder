@@ -10,7 +10,7 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("falls back to the built-in map key after Google rejects the user's key", () => {
+it("ignores previously saved personal keys for every user", () => {
   const store = () => {
     const map = new Map<string, string>();
     return {
@@ -22,8 +22,8 @@ it("falls back to the built-in map key after Google rejects the user's key", () 
   vi.stubGlobal("window", { localStorage: store(), sessionStorage: store() });
 
   setUserKey("AIza-user-key");
-  expect(activeUserKey()).toBe("AIza-user-key");
-  expect(effectiveMapsKey()).toBe("AIza-user-key");
+  expect(activeUserKey()).toBe("");
+  expect(effectiveMapsKey()).toBe(import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY ?? "");
 
   markMapsKeyRejected();
   expect(isMapsKeyRejected()).toBe(true);
@@ -32,5 +32,5 @@ it("falls back to the built-in map key after Google rejects the user's key", () 
 
   clearMapsKeyRejected();
   expect(isMapsKeyRejected()).toBe(false);
-  expect(activeUserKey()).toBe("AIza-user-key");
+  expect(activeUserKey()).toBe("");
 });

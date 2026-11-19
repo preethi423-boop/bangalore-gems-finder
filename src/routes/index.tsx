@@ -48,22 +48,16 @@ import { SubscriptionGate } from "@/components/SubscriptionGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { activeUserKey, getUserKey, isMapsKeyRejected } from "@/lib/user-key";
+import { selectEVStation } from "@/lib/ev-route";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 import { useAuth } from "@/hooks/useAuth";
 import { explorationSignal } from "@/lib/access-session";
 
 
-import {
-  searchPlacesWithKey,
-  getPlaceDetailsWithKey,
-  getNearbyWithKey,
-  computeRouteWithKey,
-  computeEVRouteWithKey,
-  type RouteResult,
-} from "@/lib/places-direct";
+import type { RouteResult } from "@/lib/places-direct";
 import {
   searchPlaces,
+  computeSharedRoute,
   getPlaceDetails,
   getNearby,
   type PlaceLite,
@@ -157,7 +151,6 @@ function Index() {
   const [nearby, setNearby] = useState<NearbyGroup[]>([]);
   const [center, setCenter] = useState(BLR);
   const [error, setError] = useState<string | null>(null);
-  const [userKey, setUserKeyState] = useState("");
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [routeStops, setRouteStops] = useState<string[] | null>(null);
   const [planRouteOn, setPlanRouteOn] = useState(false);
@@ -197,15 +190,15 @@ function Index() {
     setSheet(order[i]);
   };
 
-  useEffect(() => setUserKeyState(activeUserKey()), []);
 
   const doSearch = useServerFn(searchPlaces);
   const doDetails = useServerFn(getPlaceDetails);
   const doNearby = useServerFn(getNearby);
+  const doRoute = useServerFn(computeSharedRoute);
 
   const searchMutation = useMutation({
     mutationFn: async ({ q, version }: { q: string; version: number }) => ({
-      data: await (userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } })), version,
+      data: await doSearch({ data: { query: q } }), version,
     }),
     onSuccess: ({ data, version }) => {
       if (version !== searchVersion.current) return;
@@ -219,12 +212,8 @@ function Index() {
     mutationFn: async ({ place, range, version }: { place: PlaceLite; range: number; version: number }) => {
       explorationSignal();
       const [d, n] = await Promise.all([
-        userKey
-          ? getPlaceDetailsWithKey(userKey, place.id)
-          : doDetails({ data: { placeId: place.id } }),
-        userKey
-          ? getNearbyWithKey(userKey, place.lat, place.lng, range)
-          : doNearby({ data: { lat: place.lat, lng: place.lng, rangeKm: range } }),
+        doDetails({ data: { placeId: place.id } }),
+        doNearby({ data: { lat: place.lat, lng: place.lng, rangeKm: range } }),
       ]);
       return { d, n, version };
     },
@@ -250,11 +239,7 @@ function Index() {
 
   const routeError = (e: Error) =>
     setError(
-      e.message === "no-key"
-        ? getUserKey() && isMapsKeyRejected()
-          ? "Your saved Google API key isn't working (check its billing in Google Cloud), so routing is unavailable."
-          : "Add your Google API key to get routing."
-        : e.message === "no-geo"
+      e.message === "no-geo"
           ? "Location permission is needed to build a route."
           : e.message === "no-ev-station"
             ? "No car charging station found within the selected range. Refresh nearby places or choose a larger range."
@@ -264,10 +249,8 @@ function Index() {
   const routeMutation = useMutation({
     mutationFn: async (dest: { lat: number; lng: number }) => {
       explorationSignal();
-      const key = userKey;
-      if (!key) throw new Error("no-key");
       const origin = await getMyLocation();
-      return computeRouteWithKey(key, origin, dest, "DRIVE");
+      return doRoute({ data: { origin, destination: dest } });
     },
     onSuccess: (r) => {
       setRoute(r);
@@ -281,8 +264,6 @@ function Index() {
   const planRouteMutation = useMutation({
     mutationFn: async (dest: PlaceDetails) => {
       explorationSignal();
-      const key = userKey;
-      if (!key) throw new Error("no-key");
       const origin = await getMyLocation();
       const stops: Array<{ lat: number; lng: number }> = [];
       const labels: string[] = [];
@@ -300,7 +281,7 @@ function Index() {
         }
       }
       labels.push(`Visit: ${dest.name}`);
-      const r = await computeRouteWithKey(key, origin, { lat: dest.lat, lng: dest.lng }, "DRIVE", stops);
+      const r = await doRoute({ data: { origin, destination: { lat: dest.lat, lng: dest.lng }, intermediates: stops } });
       return { r, labels };
     },
     onSuccess: ({ r, labels }) => {
@@ -315,11 +296,12 @@ function Index() {
   const evRouteMutation = useMutation({
     mutationFn: async (dest: PlaceDetails) => {
       explorationSignal();
-      if (!userKey) throw new Error("no-key");
       const version = requestVersion.current;
       const stations = nearby.find((g) => g.key === "evcar")?.places ?? [];
       const origin = await getMyLocation();
-      const r = await computeEVRouteWithKey(userKey, origin, dest, stations, rangeKm);
+      const station = selectEVStation(origin, dest, stations, rangeKm);
+      if (!station) throw new Error("no-ev-station");
+      const r = { ...await doRoute({ data: { origin, destination: { lat: dest.lat, lng: dest.lng }, intermediates: [{ lat: station.lat, lng: station.lng }] } }), evStation: station };
       explorationSignal();
       return { r, version, destinationName: dest.name };
     },
@@ -345,19 +327,11 @@ function Index() {
   const fullRouteMutation = useMutation({
     mutationFn: async (places: PlaceLite[]) => {
       explorationSignal();
-      const key = userKey;
-      if (!key) throw new Error("no-key");
       if (!places.length) throw new Error("no-stops");
       const origin = await getMyLocation();
       const destination = places[places.length - 1];
       const intermediates = places.slice(0, -1).map((p) => ({ lat: p.lat, lng: p.lng }));
-      const r = await computeRouteWithKey(
-        key,
-        origin,
-        { lat: destination.lat, lng: destination.lng },
-        "DRIVE",
-        intermediates,
-      );
+      const r = await doRoute({ data: { origin, destination: { lat: destination.lat, lng: destination.lng }, intermediates } });
       return { r, labels: places.map((p, i) => `Stop ${i + 1}: ${p.name}`) };
     },
     onSuccess: ({ r, labels }) => {
@@ -409,13 +383,9 @@ function Index() {
   const selectByIdMutation = useMutation({
     mutationFn: async ({ placeId, range, version }: { placeId: string; range: number; version: number }) => {
       explorationSignal();
-      const d = userKey
-        ? await getPlaceDetailsWithKey(userKey, placeId)
-        : await doDetails({ data: { placeId } });
+      const d = await doDetails({ data: { placeId } });
       explorationSignal();
-      const n = userKey
-        ? await getNearbyWithKey(userKey, d.lat, d.lng, range)
-        : await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
+      const n = await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
       return { d, n, version };
     },
     onSuccess: ({ d, n, version }) => {
@@ -583,7 +553,7 @@ function Index() {
             <Button type="submit" size="sm" className="rounded-full px-4">
               {searchMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : "Go"}
             </Button>
-          </form><AccountMenu signedIn={Boolean(session)} isAdmin={isAdmin} hasKey={Boolean(userKey)} /></div>
+          </form><AccountMenu signedIn={Boolean(session)} isAdmin={isAdmin} /></div>
 
           {routePlaces.length > 0 ? (
             <div className="mt-2 rounded-2xl border border-border bg-card/95 p-2.5 shadow-[var(--shadow-card)] backdrop-blur">

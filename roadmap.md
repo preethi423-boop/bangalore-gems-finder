@@ -1,5 +1,8 @@
 # Roadmap
 
+## Shared map settings
+- [x] Restrict Google API settings to admins, persist shared keys for all visitors, remove personal-key dependencies, and default selected places to normal view. Rule tests and signed-in admin/mobile checks passed; live Google Maps must be checked on an authorized deployed origin.
+
 ## EV charging routes
 - [x] Add an opt-in Find route with EV action, charging waypoint, total driving time and station marker; eleven tests passed and signed-in desktop/mobile flow checked with sample Google responses. Live Google map rendering remains unverified locally.
 

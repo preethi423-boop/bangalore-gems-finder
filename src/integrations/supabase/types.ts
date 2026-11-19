@@ -35,6 +35,24 @@ export type Database = {
         }
         Relationships: []
       }
+      google_maps_settings: {
+        Row: {
+          browser_key: string
+          id: boolean
+          server_key: string
+        }
+        Insert: {
+          browser_key?: string
+          id?: boolean
+          server_key?: string
+        }
+        Update: {
+          browser_key?: string
+          id?: boolean
+          server_key?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

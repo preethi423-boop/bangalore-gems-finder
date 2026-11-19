@@ -44,16 +44,18 @@ export type NearbyGroup = {
   error?: string;
 };
 
-function ownKey() {
-  return process.env.GOOGLE_API_KEY?.trim() || "";
+async function ownKey() {
+  const { readSharedMapsSettings } = await import("./maps-settings.server");
+  const settings = await readSharedMapsSettings();
+  return settings.serverKey || process.env.GOOGLE_API_KEY?.trim() || "";
 }
 
-function base() {
-  return ownKey() ? "https://places.googleapis.com" : GATEWAY;
+async function placesUrl(path: string) {
+  return await ownKey() ? `https://places.googleapis.com${path.replace(/^\/places\//, "/")}` : `${GATEWAY}${path}`;
 }
 
-function buildHeaders(mask: string): Record<string, string> {
-  const own = ownKey();
+async function buildHeaders(mask: string): Promise<Record<string, string>> {
+  const own = await ownKey();
   if (own) return { "X-Goog-Api-Key": own, "Content-Type": "application/json", "X-Goog-FieldMask": mask };
   const lovableKey = process.env.LOVABLE_API_KEY;
   const connKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -68,9 +70,9 @@ function buildHeaders(mask: string): Record<string, string> {
 
 async function gateway(path: string, mask: string, body: unknown) {
   await requireSubscriptionAccess();
-  const res = await fetch(`${base()}${path}`, {
+  const res = await fetch(await placesUrl(path), {
     method: "POST",
-    headers: buildHeaders(mask),
+    headers: await buildHeaders(mask),
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -146,8 +148,8 @@ export const getPlaceDetails = createServerFn({ method: "POST" })
     await requireSubscriptionAccess();
     const mask =
       "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,photos,accessibilityOptions,parkingOptions,regularOpeningHours";
-    const res = await fetch(`${base()}/places/v1/places/${encodeURIComponent(data.placeId)}`, {
-      headers: buildHeaders(mask),
+    const res = await fetch(await placesUrl(`/places/v1/places/${encodeURIComponent(data.placeId)}`), {
+      headers: await buildHeaders(mask),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -179,8 +181,8 @@ export const getPlacePhoto = createServerFn({ method: "POST" })
   .inputValidator((data: { name: string }) => ({ resource: photoResource(String(data.name ?? "")) }))
   .handler(async ({ data }): Promise<string> => {
     await requireSubscriptionAccess();
-    const headers = buildHeaders("");
-    const res = await fetch(`${base()}/places/v1/${data.resource}/media?maxWidthPx=1200&skipHttpRedirect=true`, {
+    const headers = await buildHeaders("");
+    const res = await fetch(await placesUrl(`/places/v1/${data.resource}/media?maxWidthPx=1200&skipHttpRedirect=true`), {
       headers: Object.fromEntries(Object.entries(headers).filter(([k]) => k !== "X-Goog-FieldMask" && k !== "Content-Type")),
     });
     if (!res.ok) {
@@ -239,4 +241,33 @@ export const getNearby = createServerFn({ method: "POST" })
   });
 
 /** Browser Maps key for drawing the map: the admin-configured key, or "" to use the built-in one. */
-export const getDefaultMapsKey = createServerFn({ method: "GET" }).handler(async () => ownKey());
+export const getDefaultMapsKey = createServerFn({ method: "POST" }).handler(async () => {
+  await requireSubscriptionAccess();
+  const { readSharedMapsSettings } = await import("./maps-settings.server");
+  return (await readSharedMapsSettings()).browserKey || process.env.GOOGLE_API_KEY?.trim() || "";
+});
+
+export const computeSharedRoute = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { origin: { lat: number; lng: number }; destination: { lat: number; lng: number }; intermediates?: Array<{ lat: number; lng: number }> }) => {
+    const valid = (p: { lat: number; lng: number }) => p && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180;
+    const intermediates = data.intermediates ?? [];
+    if (!valid(data.origin) || !valid(data.destination) || intermediates.length > 25 || !intermediates.every(valid)) throw new Error("Invalid route stops (maximum 25 intermediate stops).");
+    return { origin: data.origin, destination: data.destination, intermediates };
+  }).handler(async ({ data }) => {
+    await requireSubscriptionAccess();
+    const own = await ownKey();
+    const waypoint = (p: { lat: number; lng: number }) => ({ location: { latLng: { latitude: p.lat, longitude: p.lng } } });
+    const response = await fetch(own ? "https://routes.googleapis.com/directions/v2:computeRoutes" : `${GATEWAY}/routes/directions/v2:computeRoutes`, {
+      method: "POST", headers: await buildHeaders("routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline"),
+      body: JSON.stringify({ origin: waypoint(data.origin), destination: waypoint(data.destination), intermediates: data.intermediates.map(waypoint), travelMode: "DRIVE", routingPreference: "TRAFFIC_AWARE", languageCode: "en-IN", units: "METRIC" }),
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      console.error(`Google Routes failed [${response.status}]: ${body}`);
+      if (response.status === 403) throw new Error("Google denied routing. Ask the administrator to enable Routes API and use a server key without website restrictions.");
+      throw new Error(`Routing unavailable (${response.status}).`);
+    }
+    const { readRouteResult } = await import("./route-result");
+    return readRouteResult(await response.json());
+  });

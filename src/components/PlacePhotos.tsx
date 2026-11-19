@@ -6,8 +6,6 @@ import { Camera, ChevronLeft, ChevronRight, Loader2, Maximize2, RefreshCw } from
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { getPlacePhoto, type PlaceDetails } from "@/lib/places.functions";
-import { getPlacePhotoWithKey } from "@/lib/places-direct";
-import { activeUserKey } from "@/lib/user-key";
 import { explorationSignal } from "@/lib/access-session";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -17,16 +15,15 @@ export function PlacePhotos({ details }: { details: PlaceDetails }) {
   const [expanded, setExpanded] = useState(false);
   const [failedUri, setFailedUri] = useState<string>();
   const { session } = useAuth();
-  const key = activeUserKey();
   const loadPhoto = useServerFn(getPlacePhoto);
   const photo = photos[index];
   const query = useQuery({
-    queryKey: ["place-photo", details.id, photo?.name, key ? "personal" : "managed"],
-    enabled: Boolean(photo && (session || key)),
+    queryKey: ["place-photo", details.id, photo?.name, "shared"],
+    enabled: Boolean(photo && session),
     queryFn: async () => {
       explorationSignal();
       if (!photo) throw new Error("Photo unavailable.");
-      return key ? getPlacePhotoWithKey(key, photo.name) : loadPhoto({ data: { name: photo.name } });
+      return loadPhoto({ data: { name: photo.name } });
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
@@ -44,7 +41,7 @@ export function PlacePhotos({ details }: { details: PlaceDetails }) {
         <h3 className="flex items-center gap-2 text-sm font-semibold"><Camera className="size-4 text-primary" />Photos of {details.name}</h3>
         {photos.length > 0 && <span className="shrink-0 text-xs text-muted-foreground">{index + 1} / {photos.length}</span>}
       </div>
-      {!photo ? <p className="text-xs text-muted-foreground">No photos available for this place.</p> : !session && !key ? (
+      {!photo ? <p className="text-xs text-muted-foreground">No photos available for this place.</p> : !session ? (
         <Button asChild variant="outline" size="sm"><Link to="/auth">Sign in to view photos</Link></Button>
       ) : (
         <>
