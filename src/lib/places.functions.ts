@@ -49,7 +49,13 @@ function ownKey() {
 }
 
 function base() {
-  return ownKey() ? "https://places.googleapis.com" : GATEWAY;
+  // Gateway paths start with "/places/v1"; Google's own host expects "/v1".
+  return ownKey() ? "https://places.googleapis.com/__strip" : GATEWAY;
+}
+
+function apiUrl(path: string) {
+  const b = base();
+  return b.endsWith("/__strip") ? `https://places.googleapis.com${path.replace(/^\/places/, "")}` : `${b}${path}`;
 }
 
 function buildHeaders(mask: string): Record<string, string> {
@@ -68,7 +74,7 @@ function buildHeaders(mask: string): Record<string, string> {
 
 async function gateway(path: string, mask: string, body: unknown) {
   await requireSubscriptionAccess();
-  const res = await fetch(`${base()}${path}`, {
+  const res = await fetch(apiUrl(path), {
     method: "POST",
     headers: buildHeaders(mask),
     body: JSON.stringify(body),
@@ -146,7 +152,7 @@ export const getPlaceDetails = createServerFn({ method: "POST" })
     await requireSubscriptionAccess();
     const mask =
       "id,displayName,formattedAddress,location,rating,userRatingCount,priceLevel,primaryTypeDisplayName,editorialSummary,nationalPhoneNumber,websiteUri,googleMapsUri,reviews,photos,accessibilityOptions,parkingOptions,regularOpeningHours";
-    const res = await fetch(`${base()}/places/v1/places/${encodeURIComponent(data.placeId)}`, {
+    const res = await fetch(apiUrl(`/places/v1/places/${encodeURIComponent(data.placeId)}`), {
       headers: buildHeaders(mask),
     });
     if (!res.ok) {
@@ -180,7 +186,7 @@ export const getPlacePhoto = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<string> => {
     await requireSubscriptionAccess();
     const headers = buildHeaders("");
-    const res = await fetch(`${base()}/places/v1/${data.resource}/media?maxWidthPx=1200&skipHttpRedirect=true`, {
+    const res = await fetch(apiUrl(`/places/v1/${data.resource}/media?maxWidthPx=1200&skipHttpRedirect=true`), {
       headers: Object.fromEntries(Object.entries(headers).filter(([k]) => k !== "X-Goog-FieldMask" && k !== "Content-Type")),
     });
     if (!res.ok) {
