@@ -23,7 +23,10 @@ export const Route = createFileRoute("/api/auth/google/callback")({
 
         try {
           const { sessionId } = await authenticateGoogleCode(code);
-          const response = Response.redirect(new URL(returnTo, url.origin), 302);
+          const response = new Response(null, {
+  status: 302,
+  headers: { Location: returnTo },
+});
           response.headers.append("Set-Cookie", serializeCookie("google_oauth_state", "", { maxAge: 0, path: "/api/auth/google/callback", secure }));
           response.headers.append("Set-Cookie", serializeCookie("session", sessionId, { maxAge: 60 * 60 * 24 * 30, secure }));
           return response;
