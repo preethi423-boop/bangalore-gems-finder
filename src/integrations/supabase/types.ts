@@ -53,6 +53,54 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_orders: {
+        Row: {
+          access_until: string | null
+          amount_paise: number
+          created_at: string
+          creation_attempt_at: string | null
+          currency: string
+          id: string
+          mode: string
+          paid_at: string | null
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          status: string
+          tier: string
+          user_id: string
+        }
+        Insert: {
+          access_until?: string | null
+          amount_paise: number
+          created_at?: string
+          creation_attempt_at?: string | null
+          currency?: string
+          id?: string
+          mode: string
+          paid_at?: string | null
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          status?: string
+          tier: string
+          user_id: string
+        }
+        Update: {
+          access_until?: string | null
+          amount_paise?: number
+          created_at?: string
+          creation_attempt_at?: string | null
+          currency?: string
+          id?: string
+          mode?: string
+          paid_at?: string | null
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          status?: string
+          tier?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -112,18 +160,21 @@ export type Database = {
           subscription_ends_at: string | null
           trial_ends_at: string
           trial_started_at: string
+          trial_started_explicitly: boolean
           user_id: string
         }
         Insert: {
           subscription_ends_at?: string | null
           trial_ends_at: string
           trial_started_at: string
+          trial_started_explicitly?: boolean
           user_id: string
         }
         Update: {
           subscription_ends_at?: string | null
           trial_ends_at?: string
           trial_started_at?: string
+          trial_started_explicitly?: boolean
           user_id?: string
         }
         Relationships: []
@@ -198,6 +249,30 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       can_use_subscription_app: { Args: never; Returns: boolean }
+      complete_payment_order: {
+        Args: { _order_id: string; _payment_id: string }
+        Returns: {
+          access_until: string | null
+          amount_paise: number
+          created_at: string
+          creation_attempt_at: string | null
+          currency: string
+          id: string
+          mode: string
+          paid_at: string | null
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          status: string
+          tier: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payment_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_subscription_settings: {
         Args: never
         Returns: {
@@ -225,6 +300,30 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      reserve_payment_order: {
+        Args: { _mode: string; _tier: string }
+        Returns: {
+          access_until: string | null
+          amount_paise: number
+          created_at: string
+          creation_attempt_at: string | null
+          currency: string
+          id: string
+          mode: string
+          paid_at: string | null
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          status: string
+          tier: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payment_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       start_subscription_trial: { Args: never; Returns: undefined }
     }

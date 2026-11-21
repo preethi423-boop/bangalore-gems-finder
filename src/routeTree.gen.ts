@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as SubscriptionRouteImport } from './routes/subscription'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as ApiPublicExploreRouteImport } from './routes/api/public/explore'
+import { Route as ApiPublicRazorpayWebhookRouteImport } from './routes/api/public/razorpay-webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -45,6 +46,12 @@ const ApiPublicExploreRoute = ApiPublicExploreRouteImport.update({
   path: '/api/public/explore',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRazorpayWebhookRoute =
+  ApiPublicRazorpayWebhookRouteImport.update({
+    id: '/api/public/razorpay-webhook',
+    path: '/api/public/razorpay-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -52,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/subscription': typeof SubscriptionRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/api/public/explore': typeof ApiPublicExploreRoute
+  '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -59,6 +67,7 @@ export interface FileRoutesByTo {
   '/subscription': typeof SubscriptionRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/api/public/explore': typeof ApiPublicExploreRoute
+  '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -68,12 +77,25 @@ export interface FileRoutesById {
   '/subscription': typeof SubscriptionRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/api/public/explore': typeof ApiPublicExploreRoute
+  '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/subscription' | '/admin' | '/api/public/explore'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/subscription'
+    | '/admin'
+    | '/api/public/explore'
+    | '/api/public/razorpay-webhook'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/subscription' | '/admin' | '/api/public/explore'
+  to:
+    | '/'
+    | '/auth'
+    | '/subscription'
+    | '/admin'
+    | '/api/public/explore'
+    | '/api/public/razorpay-webhook'
   id:
     | '__root__'
     | '/'
@@ -82,6 +104,7 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/_authenticated/admin'
     | '/api/public/explore'
+    | '/api/public/razorpay-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -90,6 +113,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   SubscriptionRoute: typeof SubscriptionRoute
   ApiPublicExploreRoute: typeof ApiPublicExploreRoute
+  ApiPublicRazorpayWebhookRoute: typeof ApiPublicRazorpayWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -136,6 +160,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicExploreRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/razorpay-webhook': {
+      id: '/api/public/razorpay-webhook'
+      path: '/api/public/razorpay-webhook'
+      fullPath: '/api/public/razorpay-webhook'
+      preLoaderRoute: typeof ApiPublicRazorpayWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -156,6 +187,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   SubscriptionRoute: SubscriptionRoute,
   ApiPublicExploreRoute: ApiPublicExploreRoute,
+  ApiPublicRazorpayWebhookRoute: ApiPublicRazorpayWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
