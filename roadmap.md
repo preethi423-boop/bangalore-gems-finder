@@ -11,8 +11,9 @@
 - [x] Group account controls beside search, expand trials to 1–15 days, add admin UPI setup/QR previews, and enforce expiry immediately.
 - [x] Expand admin dashboard with live visitor preview and admin-only navigation; verified using the admin session, signed-out view and seven passing rule tests.
 - [x] Add INR monthly/yearly pricing controls, admin free mode, explicit 1–2 day trials, account page and server access checks; payment checkout remains unavailable.
-- [ ] Connect Razorpay checkout from monthly/yearly payment buttons and update only the paying user's usage expiry after verified payment; waiting for the secure Razorpay connection and live-payment approval. Preserve saved UPI details.
-- [ ] After real payments are connected, add verified payment confirmation and purchased-plan activation; retain the existing subscription page, expiry dates, and immediate Maps expiry block. Blocked on payment provider connection.
+- [x] Connect the live Razorpay account and add secure gateway and hosted payment-window helpers.
+- [ ] Connect monthly/yearly payment buttons and verified per-user expiry updates; waiting for the user's choice of automatic renewal or pay each time. Preserve saved UPI details.
+- [ ] Add payment confirmation and purchased-plan activation; retain existing expiry dates and immediate Maps expiry block. Blocked on the renewal choice above.
 - [ ] Connect Google Play purchases; waiting for required store configuration.
 - [x] Fix sponsored-offer refresh, street-food failures and previous-search navigation; verified with sample service responses and six passing tests.
 - [x] Add grounded recommendations and safe streaming AI access.
