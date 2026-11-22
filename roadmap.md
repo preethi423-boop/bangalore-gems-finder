@@ -12,8 +12,9 @@
 - [x] Expand admin dashboard with live visitor preview and admin-only navigation; verified using the admin session, signed-out view and seven passing rule tests.
 - [x] Add INR monthly/yearly pricing controls, admin free mode, explicit 1–2 day trials, account page and server access checks; payment checkout remains unavailable.
 - [x] Connect the live Razorpay account and add secure gateway and hosted payment-window helpers.
-- [ ] Implement prepaid monthly/yearly Razorpay checkout, payment confirmation and per-user expiry updates with no automatic renewal. Preserve saved UPI details.
-- [ ] Verify checkout, duplicate-payment protection, access readback and expiry blocking; live payment completion requires an actual buyer payment.
+- [x] Implement prepaid monthly/yearly Razorpay checkout, verified confirmation and per-user expiry updates with no automatic renewal; preserve saved UPI details.
+- [x] Verify live monthly/yearly payment windows, unpaid readback, mobile layout, calendar expiry, duplicate confirmation, account isolation and server access checks; 18 tests passed, temporary database tests rolled back.
+- [ ] Verify an actual completed buyer payment and published webhook delivery; waiting for deployment, Razorpay webhook configuration and a real buyer payment. Setup is documented in RAZORPAY_SETUP.md.
 - [ ] Connect Google Play purchases; waiting for required store configuration.
 - [x] Fix sponsored-offer refresh, street-food failures and previous-search navigation; verified with sample service responses and six passing tests.
 - [x] Add grounded recommendations and safe streaming AI access.

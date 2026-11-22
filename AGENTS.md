@@ -16,7 +16,7 @@
 - Place navigation stores map/search snapshots in browser history and ignores superseded requests so Back restores the previous view without stale place updates.
 - Sponsored offers remain site-wide admin content and are periodically refreshed; never label them as location-targeted without location data.
 - Subscription access is database-authoritative: admin-controlled settings, once-per-account explicit trials, and service-only paid entitlements; server Maps and AI calls verify access, while user-key Maps remain third-party browser calls behind the UI gate.
-- Do not activate purchase controls or grant paid access until a real payment provider verifies purchases; Play Store and UPI setup is pending and displayed as unavailable.
+- Paid access requires server-verified Razorpay capture matching the stored live order and amount; Play Store purchases remain unavailable until store verification exists.
 - Admin draft previews share subscription plan rendering with the visitor page and never write settings until Save; preserve unsaved drafts during background refreshes.
 - Prebundle lazy admin tabs alongside React to prevent mixed dependency generations during development.
 - Trial duration uses the additive trial_duration_days column; the deprecated trial_days column is never read by new code.
@@ -26,3 +26,5 @@
 - EV routes use real car-charging candidates within the selected destination range, ranked by approximate detour and passed as a Routes waypoint; this includes road detours in driving time without claiming charging duration or connector compatibility.
 - Google sign-in uses the Lovable broker on Lovable-hosted origins and direct backend OAuth (owner's own Google client) on self-hosted domains, because the broker's /~oauth paths only exist on Lovable hosting.
 - Razorpay calls use one server-only connector gateway helper and hosted Checkout; provider credentials and card inputs must never enter app forms.
+- Prepaid purchases use owner-readable, service-written orders and a service-only atomic completion RPC; lock per user and record unique payment IDs so retries cannot extend access twice.
+- Claim order creation once and recover ambiguous Razorpay requests by unique receipt; retrying a timeout must not create another chargeable order.

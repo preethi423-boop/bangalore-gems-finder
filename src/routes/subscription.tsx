@@ -5,7 +5,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, LogOut } from "lucide-react";
-import { SubscriptionPlans } from "@/components/SubscriptionPlans";
+import { SubscriptionPayments } from "@/components/SubscriptionPayments";
 
 export const Route = createFileRoute("/subscription")({
   head: () => ({ meta: [
@@ -35,11 +35,11 @@ function SubscriptionPage() {
     <h1 className="mt-8 text-2xl font-semibold">Namma Spot access</h1>
     {loading || query.isPending ? <p className="mt-5 text-muted-foreground">Checking access…</p> : query.isError ? <div className="mt-5 space-y-3"><p className="text-destructive">Could not load your access.</p><Button onClick={() => query.refetch()}>Try again</Button></div> : <>
       <p className="mt-3 text-muted-foreground">{free ? "Namma Spot is currently free for everyone." : isAdmin ? "Your admin account has full access." : query.data?.allowed ? "Your access is active." : "Choose monthly or yearly access to explore Bengaluru."}</p>
-      {access ? <div className="mt-5 border-l-2 border-primary pl-4 text-sm"><p>Trial ends: {new Date(access.trial_ends_at).toLocaleString("en-IN")}</p>{access.subscription_ends_at ? <p>Subscription ends: {new Date(access.subscription_ends_at).toLocaleString("en-IN")}</p> : null}</div> : null}
-      <div className="mt-8"><SubscriptionPlans monthly={settings?.monthly_price} yearly={settings?.yearly_price} /></div>
+      {access ? <div className="mt-5 border-l-2 border-primary pl-4 text-sm">{access.trial_started_explicitly ? <p>Trial ends: {new Date(access.trial_ends_at).toLocaleString("en-IN")}</p> : null}{access.subscription_ends_at ? <p>Subscription ends: {new Date(access.subscription_ends_at).toLocaleString("en-IN")}</p> : null}</div> : null}
+      <div className="mt-8"><SubscriptionPayments {...(user ? { userId: user.id } : {})} monthly={settings?.monthly_price} yearly={settings?.yearly_price} /></div>
       <div className="mt-8 space-y-3">
-        {free ? <Button asChild><Link to="/">Explore for free</Link></Button> : !user ? <Button asChild><Link to="/auth" search={{ returnTo: "/" }}>Sign in to start {settings?.trial_duration_days ?? 2}-day trial</Link></Button> : !access && !isAdmin ? <Button disabled={start.isPending} onClick={() => start.mutate()}>Start {settings?.trial_duration_days ?? 2}-day free trial</Button> : query.data?.allowed ? <Button asChild><Link to="/">Continue exploring</Link></Button> : <p className="text-sm text-muted-foreground">Your access has ended. Subscribe to continue once verified payments are available.</p>}
-        <p className="text-xs text-muted-foreground">No payment is taken for the trial. UPI account setup is available to the admin; visitor payments stay unavailable until payment verification is connected. Play Store payments are pending.</p>
+        {free ? <Button asChild><Link to="/">Explore for free</Link></Button> : !user ? <Button asChild><Link to="/auth" search={{ returnTo: "/subscription" }}>Sign in to start {settings?.trial_duration_days ?? 2}-day trial</Link></Button> : !access && !isAdmin ? <Button disabled={start.isPending} onClick={() => start.mutate()}>Start {settings?.trial_duration_days ?? 2}-day free trial</Button> : query.data?.allowed ? <Button asChild><Link to="/">Continue exploring</Link></Button> : <p className="text-sm text-muted-foreground">Your access has ended. Pay for monthly or yearly access to continue.</p>}
+        <p className="text-xs text-muted-foreground">No payment is taken for the trial. Razorpay verifies payments before access is added to your account. Play Store payments are pending.</p>
         {start.isError ? <p role="alert" className="text-sm text-destructive">{start.error.message}</p> : null}
         {isAdmin ? <Button asChild variant="outline"><Link to="/admin">Manage access settings</Link></Button> : null}
       </div>

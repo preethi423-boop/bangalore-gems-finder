@@ -6,9 +6,14 @@ import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { safeAuthReturn } from "@/lib/auth-return";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>): { returnTo?: string; place?: string } => ({ returnTo: search.returnTo === "/" ? "/" : undefined, place: typeof search.place === "string" ? search.place.slice(0, 200) : undefined }),
+  validateSearch: (search: Record<string, unknown>): { returnTo?: string; place?: string } => {
+    const returnTo = safeAuthReturn(search['returnTo']);
+    const place = typeof search['place'] === "string" ? search['place'].slice(0, 200) : undefined;
+    return { ...(returnTo ? { returnTo } : {}), ...(place ? { place } : {}) };
+  },
   head: () => ({
     meta: [
       { title: "Sign in — Namma Spot" },
@@ -31,7 +36,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const { returnTo, place } = Route.useSearch();
-  const destination = returnTo === "/" ? `/${place ? `?place=${encodeURIComponent(place)}` : ""}` : "/admin";
+  const destination = returnTo === "/subscription" ? "/subscription" : returnTo === "/" ? `/${place ? `?place=${encodeURIComponent(place)}` : ""}` : "/admin";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
