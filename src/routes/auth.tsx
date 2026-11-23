@@ -89,7 +89,7 @@ function AuthPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}${returnTo === "/" ? destination : "/"}`,
+          redirectTo: `${window.location.origin}${destination}`,
           queryParams: { prompt: "select_account" },
         },
       });
@@ -97,7 +97,7 @@ function AuthPage() {
       return;
     }
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: `${window.location.origin}${returnTo === "/" ? destination : "/"}`,
+      redirect_uri: `${window.location.origin}${destination}`,
       extraParams: { prompt: "select_account" },
     });
     if (result.error) {
