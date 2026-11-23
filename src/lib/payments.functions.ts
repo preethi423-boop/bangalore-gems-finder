@@ -32,6 +32,6 @@ export const checkPayment = createServerFn({ method: "POST" }).middleware([requi
   });
 
 export const paymentAvailability = createServerFn({ method: "GET" }).handler(async () => {
-  const key = process.env['RAZORPAY_CONNECTION_KEY_ID'];
-  return { live: Boolean(process.env['LOVABLE_API_KEY'] && process.env['RAZORPAY_CONNECTION_KEY'] && key?.startsWith("rzp_live_")) };
+  const key = process.env['RAZORPAY_KEY_ID'];
+  return { live: Boolean(process.env['RAZORPAY_KEY_SECRET'] && key?.startsWith("rzp_live_")) };
 });
