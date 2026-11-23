@@ -88,13 +88,17 @@ function AuthPage() {
       // Self-hosted domains use the project's own Google OAuth client directly.
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}${returnTo === "/" ? destination : "/"}` },
+        options: {
+          redirectTo: `${window.location.origin}${returnTo === "/" ? destination : "/"}`,
+          queryParams: { prompt: "select_account" },
+        },
       });
       if (error) setMessage("Google sign-in failed. Please try again.");
       return;
     }
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: `${window.location.origin}${returnTo === "/" ? destination : "/"}`,
+      extraParams: { prompt: "select_account" },
     });
     if (result.error) {
       setMessage("Google sign-in failed. Please try again.");
