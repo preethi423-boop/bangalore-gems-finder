@@ -36,6 +36,6 @@ export function useSubscription(userId?: string) {
     return () => { clearTimeout(timer); window.removeEventListener("focus", tick); document.removeEventListener("visibilitychange", tick); };
   }, [deadline]);
   const paidMode = query.data?.settings?.paid_mode === true;
-  const allowed = !paidMode || (query.data?.allowed === true && hasSubscriptionAccess({ paidMode, admin: query.data.admin, trialEndsAt: query.data.access?.trial_ends_at, subscriptionEndsAt: query.data.access?.subscription_ends_at }, now || Date.now());)
+  const allowed = !paidMode || (query.data?.allowed === true && hasSubscriptionAccess({ paidMode, admin: query.data.admin, trialEndsAt: query.data.access?.trial_ends_at, subscriptionEndsAt: query.data.access?.subscription_ends_at }, now || Date.now());))
   return { ...query, data: query.data ? { ...query.data, allowed, deadline } : undefined };
 }
