@@ -30,11 +30,13 @@ function SubscriptionPage() {
   const settings = query.data?.settings;
   const access = query.data?.access;
   const free = !settings?.paid_mode;
-  return <main className="min-h-screen bg-background px-5 py-8"><div className="mx-auto max-w-xl">
+const hasPaidSubscription = Boolean(access?.subscription_ends_at && Date.parse(access.subscription_ends_at) > Date.now());
+  const isFreeTrial = Boolean(access?.trial_ends_at && Date.parse(access.trial_ends_at) > Date.now());
+  eturn <main className="min-h-screen bg-background px-5 py-8"><div className="mx-auto max-w-xl">
     <nav className="flex flex-wrap items-center justify-between gap-3"><Button asChild variant="ghost" size="sm"><Link to="/"><ArrowLeft className="size-4" /> Map</Link></Button>{user ? <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="size-4" /> Sign out</Button> : null}</nav>
     <h1 className="mt-8 text-2xl font-semibold">Namma Spot access</h1>
     {loading || query.isPending ? <p className="mt-5 text-muted-foreground">Checking access…</p> : query.isError ? <div className="mt-5 space-y-3"><p className="text-destructive">Could not load your access.</p><Button onClick={() => query.refetch()}>Try again</Button></div> : <>
-      <p className="mt-3 text-muted-foreground">{free ? "Namma Spot is currently free for everyone." : isAdmin ? "Your admin account has full access." : query.data?.allowed ? "Your access is active." : "Choose monthly or yearly access to explore Bengaluru."}</p>
+      <p className="mt-3 text-muted-foreground">{hasPaidSubscription ? "Premium user" : free || isFreeTrial ? "Free User" : isAdmin ? "Your admin account has full access." : query.data?.allowed ? "Your access is active." : "Choose monthly or yearly access to explore Bengaluru."}</p>
       {access ? <div className="mt-5 border-l-2 border-primary pl-4 text-sm">{access.trial_started_explicitly ? <p>Trial ends: {new Date(access.trial_ends_at).toLocaleString("en-IN")}</p> : null}{access.subscription_ends_at ? <p>Subscription ends: {new Date(access.subscription_ends_at).toLocaleString("en-IN")}</p> : null}</div> : null}
       <div className="mt-8"><SubscriptionPayments {...(user ? { userId: user.id } : {})} monthly={settings?.monthly_price} yearly={settings?.yearly_price} /></div>
       <div className="mt-8 space-y-3">
