@@ -32,7 +32,7 @@ function SubscriptionPage() {
   const free = !settings?.paid_mode;
 const hasPaidSubscription = Boolean(access?.subscription_ends_at && Date.parse(access.subscription_ends_at) > Date.now());
   const isFreeTrial = Boolean(access?.trial_ends_at && Date.parse(access.trial_ends_at) > Date.now());
-  eturn <main className="min-h-screen bg-background px-5 py-8"><div className="mx-auto max-w-xl">
+  return <main className="min-h-screen bg-background px-5 py-8"><div className="mx-auto max-w-xl">
     <nav className="flex flex-wrap items-center justify-between gap-3"><Button asChild variant="ghost" size="sm"><Link to="/"><ArrowLeft className="size-4" /> Map</Link></Button>{user ? <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="size-4" /> Sign out</Button> : null}</nav>
     <h1 className="mt-8 text-2xl font-semibold">Namma Spot access</h1>
     {loading || query.isPending ? <p className="mt-5 text-muted-foreground">Checking access…</p> : query.isError ? <div className="mt-5 space-y-3"><p className="text-destructive">Could not load your access.</p><Button onClick={() => query.refetch()}>Try again</Button></div> : <>
