@@ -20,17 +20,22 @@ export function useAuth() {
       }
       // Creates the profile on first sign-in and assigns the role
       // (first ever account becomes the admin).
-      const { data } = await supabase.rpc("bootstrap_current_user", {
+     try {
+       const { data } = await supabase.rpc("bootstrap_current_user", {
         _display_name: next.user.email ?? undefined,
       });
       if (!active) return;
       setIsAdmin(data === "admin");
-      setLoading(false);
+     } catch {
+       if (active) setIsAdmin(false);
+       } finally {
+       if (active) setLoading(false);
+     }
     };
 
     supabase.auth.getSession().then(({ data }) => sync(data.session));
     const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
-      if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") return;
+      if (event === "TOKEN_REFRESHED") return;
       void sync(next);
     });
 
