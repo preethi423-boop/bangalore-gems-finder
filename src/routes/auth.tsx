@@ -36,7 +36,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const { returnTo, place } = Route.useSearch();
-  const destination = returnTo === "/subscription" ? "/subscription" : returnTo === "/" ? `/${place ? `?place=${encodeURIComponent(place)}` : ""}` : "/admin";
+  const destination = returnTo === "/subscription" ? "/subscription" : returnTo === "/" ? `/${place ? `?place=${encodeURIComponent(place)}` : ""}` : "/";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
