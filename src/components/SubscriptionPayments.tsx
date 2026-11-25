@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveSubscription, cancelSubscription } from "@/lib/payments.functions";
 import { startPayment, checkPayment, paymentAvailability } from "@/lib/payments.functions";
 import { openRazorpay } from "@/lib/razorpay-checkout";
 import type { PaymentTier } from "@/lib/payment-rules";
@@ -13,12 +14,24 @@ import { Button } from "./ui/button";
 export function SubscriptionPayments({ userId, monthly, yearly }: { userId?: string; monthly?: number | null; yearly?: number | null }) {
   const create = useServerFn(startPayment);
   const verify = useServerFn(checkPayment);
+const fetchActiveSub = useServerFn(getActiveSubscription);
+const cancelSubFn = useServerFn(cancelSubscription);
   const availability = useServerFn(paymentAvailability);
   const client = useQueryClient();
   const navigate = useNavigate();
   const [message, setMessage] = useState("");
   const [failure, setFailure] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+const activeSub = useQuery({ queryKey: ["active-subscription", userId], enabled: Boolean(userId), queryFn: () => fetchActiveSub() });
+const cancel = useMutation({
+mutationFn: (subscriptionId: string) => cancelSubFn({ data: { subscriptionId } }),
+onSuccess: async () => {
+await client.invalidateQueries({ queryKey: ["active-subscription"] });
+await client.invalidateQueries({ queryKey: ["subscription-access"] });
+setMessage("Auto-renewal has been cancelled. You will not be charged again.");
+},
+onError: error => setFailure(error.message),
+});
   const live = useQuery({ queryKey: ["payment-availability"], queryFn: () => availability() });
   const history = useQuery({
     queryKey: ["payment-orders", userId], enabled: Boolean(userId), refetchOnWindowFocus: true,
@@ -55,12 +68,13 @@ export function SubscriptionPayments({ userId, monthly, yearly }: { userId?: str
     mutationFn: async (tier: PaymentTier) => {
       setFailure(""); setMessage("");
       const order = await create({ data: { tier } });
-      if (!order.rzpOrderId) throw new Error("Could not prepare your payment.");
+      if (!order.rzpOrderId && !order.rzpSubscriptionId) throw new Error("Could not prepare your payment.");
       await client.invalidateQueries({ queryKey: ["payment-orders"] });
       setCheckoutOpen(true);
       const finish = () => { setCheckoutOpen(false); confirm.mutate(order.orderId); };
       try {
-        await openRazorpay({ key: order.keyId, order_id: order.rzpOrderId, amount: order.amount, currency: order.currency, name: "Namma Spot", description: `${tier === "monthly" ? "One month" : "One year"} of access · no auto-renewal`, handler: finish, modal: { ondismiss: finish } }, setFailure);
+        const options = order.rzpSubscriptionId?.startsWith("sub_") ? { key: order.keyId, subscription_id: order.rzpSubscriptionId, name: "Namma Spot", description: `${tier === "monthly" ? "Monthly" : "Yearly"} auto-renewing subscription · cancel anytime`, handler: finish, modal: { ondismiss: finish } } : { key: order.keyId, order_id: order.rzpOrderId, amount: order.amount, currency: order.currency, name: "Namma Spot", description: `${tier === "monthly" ? "One month" : "One year"} of access · no auto-renewal`, handler: finish, modal: { ondismiss: finish } };
+await openRazorpay(options, setFailure);
       } catch (error) { setCheckoutOpen(false); throw error; }
     },
     onError: error => { setFailure(error.message); void client.invalidateQueries({ queryKey: ["payment-orders"] }); },
@@ -68,7 +82,18 @@ export function SubscriptionPayments({ userId, monthly, yearly }: { userId?: str
   return <section aria-label="Subscription payments" className="space-y-4">
     <SubscriptionPlans monthly={monthly} yearly={yearly} busy={purchase.isPending || checkoutOpen || confirm.isPending || live.isPending} unavailable={live.isError || live.data?.live === false} onPurchase={tier => userId ? purchase.mutate(tier) : void navigate({ to: "/auth", search: { returnTo: "/subscription" } })} />
     {!userId ? <Button asChild variant="outline"><Link to="/auth" search={{ returnTo: "/subscription" }}>Sign in to pay</Link></Button> : null}
-    <p className="text-xs text-muted-foreground">One payment buys one calendar month or year. No automatic renewal. Any remaining paid time is kept when you pay again.</p>
+    <p className="text-xs text-muted-foreground">Subscriptions auto-renew monthly or yearly via Razorpay. You can cancel auto-renewal anytime from this page.</p>
+{activeSub.data ? (activeSub.data.status === "active" || activeSub.data.status === "authenticated") && !activeSub.data.endedAt ? (
+<div className="rounded-lg border border-border bg-card p-4 text-sm flex flex-wrap items-center justify-between gap-3">
+<div className="space-y-0.5">
+<p className="font-medium text-foreground">Active {activeSub.data.tier === "yearly" ? "Yearly" : "Monthly"} plan</p>
+{activeSub.data.currentEnd ? <p className="text-xs text-muted-foreground">Next renewal: {new Date(activeSub.data.currentEnd).toLocaleDateString("en-IN")}</p> : null}
+</div>
+<Button variant="outline" size="sm" disabled={cancel.isPending} onClick={() => { setFailure(""); cancel.mutate(activeSub.data!.subscriptionId); }}>Cancel auto-renewal</Button>
+</div>
+) : activeSub.data.status === "cancelled" || activeSub.data.endedAt ? (
+<div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">Auto-renewal cancelled — you will not be charged again.</div>
+) : null : null}
     {failure ? <p role="alert" className="text-sm text-destructive">{failure}</p> : null}
     {message ? <p role="status" className="text-sm text-muted-foreground">{message}</p> : null}
     {history.isError ? <p role="alert" className="text-sm text-destructive">Could not load your payments. <Button variant="link" onClick={() => history.refetch()}>Retry</Button></p> : null}
