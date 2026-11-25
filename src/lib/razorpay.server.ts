@@ -9,7 +9,7 @@ export function razorpayConfig() {
   return { keyId, keySecret, live: keyId.startsWith("rzp_live_") };
 }
 
-export async function razorpay<T extends z.ZodTypeAny>(path: string, schema: T, init: { method?: string; body?: unknown } = {}): Promise<z.infer<T>> {
+export async function razorpay<T extends z.ZodType>(path: string, schema: T, init: { method?: string; body?: unknown } = {}): Promise<z.infer<T>> {
   const { keyId, keySecret } = razorpayConfig();
   const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
   const response = await fetch(`${RAZORPAY_API_URL}/${path.replace(/^\/+/, "")}`, {
