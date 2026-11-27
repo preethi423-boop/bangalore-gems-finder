@@ -2,7 +2,7 @@
         run: |
           python3 -m pip install --quiet pillow
           python3 - << 'EOF'
-          import os, glob
+          import os, glob 
           from PIL import Image
 
           src = Image.open("public/favicon.png").convert("RGBA")
