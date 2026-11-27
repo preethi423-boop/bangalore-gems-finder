@@ -1,32 +1,67 @@
-name: Build Android APK
+- name: Generate Android app icons and splash from Namma Spot logo
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 - << 'EOF'
+          import os, glob
+          from PIL import Image
 
-on:
-  push:
-    branches:
-      - mobile-version
-  workflow_dispatch:
+          src = Image.open("public/favicon.png").convert("RGBA")
+          res = "android/app/src/main/res"
 
-jobs:
-  build-apk:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "21"
-      - run: npm install --legacy-peer-deps
-      - run: |
-          mkdir -p dist
-          npx cap sync android
-      - run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
-      - uses: actions/upload-artifact@v4
-        with:
-          name: namma-spot-android-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          def make_square(size, scale):
+              canvas = Image.new("RGBA", (size, size), (255, 255, 255, 255))
+              inner = int(size * scale)
+              resized = src.copy()
+              resized.thumbnail((inner, inner), Image.LANCZOS)
+              x = (size - resized.width) // 2
+              y = (size - resized.height) // 2
+              canvas.paste(resized, (x, y), resized)
+              return canvas
+
+          # 1. Remove old default vector foregrounds that override mipmap PNGs
+          for old in glob.glob(f"{res}/drawable*/ic_launcher_foreground.xml"):
+              os.remove(old)
+
+          # 2. Generate all legacy, round, and adaptive foreground mipmap icons
+          densities = {
+              "mdpi": (48, 108),
+              "hdpi": (72, 162),
+              "xhdpi": (96, 216),
+              "xxhdpi": (144, 324),
+              "xxxhdpi": (192, 432),
+          }
+          for d, (legacy_px, fg_px) in densities.items():
+              folder = f"{res}/mipmap-{d}"
+              os.makedirs(folder, exist_ok=True)
+              make_square(legacy_px, 0.85).save(f"{folder}/ic_launcher.png")
+              make_square(legacy_px, 0.85).save(f"{folder}/ic_launcher_round.png")
+              make_square(fg_px, 0.62).save(f"{folder}/ic_launcher_foreground.png")
+
+          # 3. Point Android 8+ adaptive icon XMLs directly to our mipmap PNGs + white background
+          os.makedirs(f"{res}/mipmap-anydpi-v26", exist_ok=True)
+          adaptive_xml = """<?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background"/>
+              <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+          </adaptive-icon>
+          """
+          for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
+              with open(f"{res}/mipmap-anydpi-v26/{name}", "w") as f:
+                  f.write(adaptive_xml)
+
+          os.makedirs(f"{res}/values", exist_ok=True)
+          with open(f"{res}/values/ic_launcher_background.xml", "w") as f:
+              f.write('<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#FFFFFF</color>\n</resources>\n')
+
+          # 4. Replace every existing splash.png with the centered Namma Spot logo
+          for splash_path in glob.glob(f"{res}/drawable*/splash.png"):
+              with Image.open(splash_path) as existing:
+                  w, h = existing.size
+              canvas = Image.new("RGBA", (w, h), (255, 255, 255, 255))
+              side = int(min(w, h) * 0.45)
+              logo = src.copy()
+              logo.thumbnail((side, side), Image.LANCZOS)
+              canvas.paste(logo, ((w - logo.width) // 2, (h - logo.height) // 2), logo)
+              canvas.save(splash_path)
+          print("All Android icons and splash screens updated.")
+          EOF
