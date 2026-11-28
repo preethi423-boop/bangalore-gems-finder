@@ -37,6 +37,7 @@ import {
   X,
   ListOrdered,
   LocateFixed,
+  Play,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
@@ -141,6 +142,25 @@ function filterNearbyByRange(
   }));
 }
 
+function buildGoogleMapsDirectionsUrl(
+  destination: { lat: number; lng: number },
+  waypoints: Array<{ lat: number; lng: number }> = [],
+) {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: `${destination.lat},${destination.lng}`,
+    travelmode: "driving",
+    dir_action: "navigate",
+  });
+  if (waypoints.length > 0) {
+    params.set(
+      "waypoints",
+      waypoints.map((w) => `${w.lat},${w.lng}`).join("|"),
+    );
+  }
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
 type MapSnapshot = {
   query: string; results: PlaceLite[]; details: PlaceDetails | null; nearby: NearbyGroup[];
   center: typeof BLR; route: RouteResult | null; rangeKm: number; lastPlace: PlaceLite | null;
@@ -196,6 +216,7 @@ function Index() {
   const [userKey, setUserKeyState] = useState("");
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [routeStops, setRouteStops] = useState<string[] | null>(null);
+  const [routeWaypoints, setRouteWaypoints] = useState<Array<{ lat: number; lng: number }>>([]);
   const [planRouteOn, setPlanRouteOn] = useState(false);
   const [routePlaces, setRoutePlaces] = useState<PlaceLite[]>([]);
   const [rangeKm, setRangeKm] = useState(5);
@@ -300,6 +321,7 @@ function Index() {
         setLastPlace(null);
         setRoute(null);
         setRouteStops(null);
+        setRouteWaypoints([]);
         if (origin) setCenter(origin);
         setSheet("peek");
       } else {
@@ -385,6 +407,7 @@ function Index() {
     onSuccess: (r) => {
       setRoute(r);
       setRouteStops(null);
+      setRouteWaypoints([]);
       setPlanRouteOn(false);
       setError(null);
     },
@@ -414,11 +437,12 @@ function Index() {
       }
       labels.push(`Visit: ${dest.name}`);
       const r = await computeRouteWithKey(key, origin, { lat: dest.lat, lng: dest.lng }, "DRIVE", stops);
-      return { r, labels };
+      return { r, labels, stops };
     },
-    onSuccess: ({ r, labels }) => {
+    onSuccess: ({ r, labels, stops }) => {
       setRoute(r);
       setRouteStops(labels);
+      setRouteWaypoints(stops);
       setPlanRouteOn(true);
       setError(null);
     },
@@ -440,6 +464,7 @@ function Index() {
       if (version !== requestVersion.current) return;
       setRoute(r);
       setRouteStops([`EV charging: ${r.evStation?.name}`, `Visit: ${destinationName}`]);
+      setRouteWaypoints(r.evStation ? [{ lat: r.evStation.lat, lng: r.evStation.lng }] : []);
       setPlanRouteOn(false);
       setError(null);
       setSheet("half");
@@ -471,17 +496,35 @@ function Index() {
         "DRIVE",
         intermediates,
       );
-      return { r, labels: places.map((p, i) => `Stop ${i + 1}: ${p.name}`) };
+      return { r, labels: places.map((p, i) => `Stop ${i + 1}: ${p.name}`), intermediates };
     },
-    onSuccess: ({ r, labels }) => {
+    onSuccess: ({ r, labels, intermediates }) => {
       setRoute(r);
       setRouteStops(labels);
+      setRouteWaypoints(intermediates);
       setPlanRouteOn(false);
       setError(null);
       setSheet("half");
     },
     onError: routeError,
   });
+
+  const closeSearchResults = useCallback(() => {
+    ++searchVersion.current;
+    searchMutation.reset();
+    setResults([]);
+    setResultDistances({});
+    setLastNearbyQuery(null);
+  }, [searchMutation.reset]);
+
+  const openGoogleMapsDirections = useCallback(
+    (destination: { lat: number; lng: number }, waypoints: Array<{ lat: number; lng: number }> = []) => {
+      closeSearchResults();
+      const url = buildGoogleMapsDirectionsUrl(destination, waypoints);
+      window.open(url, "_blank", "noopener,noreferrer");
+    },
+    [closeSearchResults],
+  );
 
   const runSearch = (q: string, overrideRange?: number, overrideNearMe?: boolean) => {
     const value = q.trim();
@@ -518,6 +561,7 @@ function Index() {
       setNearby([]);
       setRoute(null);
       setRouteStops(null);
+      setRouteWaypoints([]);
       setPlanRouteOn(false);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
@@ -565,6 +609,7 @@ function Index() {
       setNearby([]);
       setRoute(null);
       setRouteStops(null);
+      setRouteWaypoints([]);
       setPlanRouteOn(false);
       setSheet("half");
       setFullMap(false);
@@ -606,7 +651,7 @@ function Index() {
       ++requestVersion.current; ++searchVersion.current;
       selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset();
       setQuery(previous.query); setResults(previous.results); setDetails(previous.details); setNearby(previous.nearby);
-      setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setPlanRouteOn(false); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
+      setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setRouteWaypoints([]); setPlanRouteOn(false); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
       setSheet(previous.sheet); setFullMap(previous.fullMap); setDepth(previous.depth); setError(null);
     };
     window.addEventListener("popstate", restore);
@@ -739,7 +784,10 @@ function Index() {
                   <Button
                     size="sm"
                     className="h-7 rounded-full px-3 text-xs"
-                    onClick={() => fullRouteMutation.mutate(routePlaces)}
+                    onClick={() => {
+                      closeSearchResults();
+                      fullRouteMutation.mutate(routePlaces);
+                    }}
                     disabled={fullRouteMutation.isPending}
                   >
                     {fullRouteMutation.isPending ? (
@@ -748,6 +796,19 @@ function Index() {
                       <RouteIcon className="size-3.5" />
                     )}
                     Plan route
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 rounded-full px-3 text-xs"
+                    onClick={() => {
+                      const destination = routePlaces[routePlaces.length - 1];
+                      const waypoints = routePlaces.slice(0, -1);
+                      openGoogleMapsDirections(destination, waypoints);
+                    }}
+                  >
+                    <Play className="size-3.5" />
+                    Start
                   </Button>
                 </div>
               </div>
@@ -1016,7 +1077,10 @@ function Index() {
                   size="sm"
                   variant="secondary"
                   className="gap-1.5"
-                  onClick={() => routeMutation.mutate({ lat: details.lat, lng: details.lng })}
+                  onClick={() => {
+                    closeSearchResults();
+                    routeMutation.mutate({ lat: details.lat, lng: details.lng });
+                  }}
                   disabled={routeMutation.isPending || evRouteMutation.isPending || planRouteMutation.isPending}
                 >
                   {routeMutation.isPending ? (
@@ -1028,10 +1092,27 @@ function Index() {
                 </Button>
                 <Button
                   size="sm"
+                  variant="default"
+                  className="gap-1.5"
+                  onClick={() =>
+                    openGoogleMapsDirections(
+                      { lat: details.lat, lng: details.lng },
+                      routeWaypoints,
+                    )
+                  }
+                >
+                  <Play className="size-4" />
+                  Start
+                </Button>
+                <Button
+                  size="sm"
                   variant={route?.evStation ? "default" : "outline"}
                   className="gap-1.5"
                   aria-pressed={Boolean(route?.evStation)}
-                  onClick={() => evRouteMutation.mutate(details)}
+                  onClick={() => {
+                    closeSearchResults();
+                    evRouteMutation.mutate(details);
+                  }}
                   disabled={evRouteMutation.isPending || routeMutation.isPending || planRouteMutation.isPending || selectMutation.isPending}
                 >
                   {evRouteMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Zap className="size-4" />}
@@ -1042,7 +1123,10 @@ function Index() {
                   variant={planRouteOn ? "default" : "outline"}
                   className="gap-1.5"
                   aria-pressed={planRouteOn}
-                  onClick={() => planRouteMutation.mutate(details)}
+                  onClick={() => {
+                    closeSearchResults();
+                    planRouteMutation.mutate(details);
+                  }}
                   disabled={planRouteMutation.isPending || evRouteMutation.isPending || routeMutation.isPending}
                 >
                   {planRouteMutation.isPending ? (
