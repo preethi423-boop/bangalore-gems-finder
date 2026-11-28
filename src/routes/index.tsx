@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { parseNearbyQuery, searchPlacesWithLocation } from "@/lib/nearby-search";
 import {
   Search,
   MapPin,
@@ -37,6 +36,7 @@ import {
   Plus,
   X,
   ListOrdered,
+  LocateFixed,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
@@ -53,7 +53,11 @@ import { activeUserKey, getUserKey, isMapsKeyRejected } from "@/lib/user-key";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 import { useAuth } from "@/hooks/useAuth";
 import { explorationSignal } from "@/lib/access-session";
-
+import {
+  inferMarkerKind,
+  parseNearbyQuery,
+  searchPlacesWithLocation,
+} from "@/lib/nearby-search";
 
 import {
   searchPlacesWithKey,
@@ -154,6 +158,9 @@ function Index() {
   const { session, isAdmin } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceLite[]>([]);
+  const [resultDistances, setResultDistances] = useState<Record<string, number>>({});
+  const [nearMeMode, setNearMeMode] = useState(false);
+  const [lastNearbyQuery, setLastNearbyQuery] = useState<string | null>(null);
   const [details, setDetails] = useState<PlaceDetails | null>(null);
   const [nearby, setNearby] = useState<NearbyGroup[]>([]);
   const [center, setCenter] = useState(BLR);
@@ -178,7 +185,6 @@ function Index() {
   useEffect(() => {
     setSaved(details ? isFavorite(details.id) : false);
   }, [details, favVersion]);
-
 
   const SHEET_H: Record<"peek" | "half" | "full", string> = {
     peek: "16vh",
@@ -205,15 +211,90 @@ function Index() {
   const doNearby = useServerFn(getNearby);
 
   const searchMutation = useMutation({
-    mutationFn: async ({ q, version }: { q: string; version: number }) => ({
-      data: await (userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } })), version,
-    }),
-    onSuccess: ({ data, version }) => {
+    mutationFn: async ({
+      q,
+      version,
+      range,
+      forceNearMe,
+    }: {
+      q: string;
+      version: number;
+      range: number;
+      forceNearMe: boolean;
+    }) => {
+      const { isNearby } = parseNearbyQuery(q);
+      const useNearby = forceNearMe || isNearby;
+      const browserKey =
+        userKey ||
+        ((import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY as string | undefined) ??
+          "");
+
+      if (useNearby && browserKey) {
+        const res = await searchPlacesWithLocation({
+          query: q,
+          apiKey: browserKey,
+          fallbackCenter: center,
+          radiusKm: range,
+          strictRadius: true,
+        });
+        return {
+          data: res.places as PlaceLite[],
+          distances: Object.fromEntries(res.places.map((p) => [p.id, p.distanceKm])),
+          origin: res.origin,
+          usedCurrentLocation: res.usedCurrentLocation,
+          wasNearby: true,
+          radiusKm: res.radiusKm,
+          queryText: q,
+          version,
+        };
+      }
+
+      const data = await (userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } }));
+      return {
+        data,
+        distances: {} as Record<string, number>,
+        origin: null as { lat: number; lng: number } | null,
+        usedCurrentLocation: false,
+        wasNearby: false,
+        radiusKm: range,
+        queryText: q,
+        version,
+      };
+    },
+    onSuccess: ({ data, distances, origin, usedCurrentLocation, wasNearby, radiusKm, queryText, version }) => {
       if (version !== searchVersion.current) return;
       setResults(data);
-      setError(data.length ? null : "No places found. Try another name.");
+      setResultDistances(distances);
+      if (wasNearby) {
+        setLastNearbyQuery(queryText);
+        setDetails(null);
+        setNearby([]);
+        setLastPlace(null);
+        setRoute(null);
+        setRouteStops(null);
+        if (origin) setCenter(origin);
+        setSheet("peek");
+      } else {
+        setLastNearbyQuery(null);
+      }
+
+      if (!data.length) {
+        setError(
+          wasNearby
+            ? `No matching places found within ${radiusKm} km${usedCurrentLocation ? " of your location" : ""}. Try 10 km or 25 km.`
+            : "No places found. Try another name.",
+        );
+      } else if (wasNearby && !usedCurrentLocation) {
+        setError("Location permission was unavailable—showing results near the current map area.");
+      } else {
+        setError(null);
+      }
     },
-    onError: (_, { version }) => { if (version === searchVersion.current) setError("Could not search right now. Please try again."); },
+    onError: (_, { version }) => {
+      if (version === searchVersion.current) {
+        setError("Could not search right now. Please try again.");
+      }
+    },
   });
 
   const selectMutation = useMutation({
@@ -371,12 +452,18 @@ function Index() {
     onError: routeError,
   });
 
-  const runSearch = (q: string) => {
+  const runSearch = (q: string, overrideRange?: number, overrideNearMe?: boolean) => {
     const value = q.trim();
     if (!value) return;
     setQuery(value);
     setResults([]);
-    searchMutation.mutate({ q: value, version: ++searchVersion.current });
+    setResultDistances({});
+    searchMutation.mutate({
+      q: value,
+      version: ++searchVersion.current,
+      range: overrideRange ?? rangeKm,
+      forceNearMe: overrideNearMe ?? nearMeMode,
+    });
   };
 
   const pushPlace = (id: string) => {
@@ -393,6 +480,8 @@ function Index() {
     (p: PlaceLite) => {
       pushPlace(p.id);
       setResults([]);
+      setResultDistances({});
+      setLastNearbyQuery(null);
       setDetails(null);
       setNearby([]);
       setRoute(null);
@@ -434,6 +523,8 @@ function Index() {
     (placeId: string) => {
       pushPlace(placeId);
       setResults([]);
+      setResultDistances({});
+      setLastNearbyQuery(null);
       setDetails(null);
       setNearby([]);
       setRoute(null);
@@ -461,6 +552,8 @@ function Index() {
     if (lastPlace) {
       setNearby([]);
       selectMutation.mutate({ place: lastPlace, range: km, version: ++requestVersion.current });
+    } else if (lastNearbyQuery) {
+      runSearch(lastNearbyQuery, km, true);
     }
   };
 
@@ -483,12 +576,17 @@ function Index() {
     return () => window.removeEventListener("popstate", restore);
   }, [selectMutation.reset, selectByIdMutation.reset, searchMutation.reset, routeMutation.reset]);
 
+  const searchMarkers: MapMarker[] =
+    !details && results.length > 0
+      ? results.map((p) => ({ ...p, kind: inferMarkerKind(query) }))
+      : [];
   const nearbyMarkers: MapMarker[] = nearby
     .flatMap((g) => g.places.map((p) => ({ ...p, kind: g.key })))
     .slice(0, 40);
+  const baseMarkers = nearbyMarkers.length > 0 ? nearbyMarkers : searchMarkers;
   const markers: MapMarker[] = route?.evStation
-    ? [{ ...route.evStation, kind: "evcar" }, ...nearbyMarkers.filter((p) => p.id !== route.evStation?.id)]
-    : nearbyMarkers;
+    ? [{ ...route.evStation, kind: "evcar" }, ...baseMarkers.filter((p) => p.id !== route.evStation?.id)]
+    : baseMarkers;
 
   const routePanel = route ? (
     <div className="mt-3 rounded-lg border border-border bg-secondary/60 p-3">
@@ -577,7 +675,7 @@ function Index() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search a place in Bengaluru…"
+              placeholder="Search a place or nearby charging station…"
               className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
               aria-label="Search a place"
             />
@@ -642,6 +740,24 @@ function Index() {
 
           <div className="mt-2 flex flex-wrap gap-1.5">
             <FavoritesSheet onOpenPlace={selectById} version={favVersion} />
+            <button
+              type="button"
+              onClick={() => {
+                const next = !nearMeMode;
+                setNearMeMode(next);
+                if (next && query.trim()) {
+                  runSearch(query, rangeKm, true);
+                }
+              }}
+              aria-pressed={nearMeMode}
+              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs backdrop-blur transition ${
+                nearMeMode
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card/90 text-muted-foreground hover:border-primary/50 hover:text-foreground"
+              }`}
+            >
+              <LocateFixed className="size-3.5" /> Near me
+            </button>
             <div
               role="group"
               aria-label="Search range"
@@ -667,7 +783,7 @@ function Index() {
             {QUICK.map((q) => (
               <button
                 key={q}
-                onClick={() => runSearch(q)}
+                onClick={() => runSearch(q, rangeKm, false)}
                 className="rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
               >
                 {q}
@@ -697,6 +813,11 @@ function Index() {
                       </span>
                     </span>
                     <span className="ml-auto flex shrink-0 items-center gap-2">
+                      {resultDistances[r.id] != null ? (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {resultDistances[r.id]} km
+                        </Badge>
+                      ) : null}
                       <Stars rating={r.rating} />
                       <span
                         role="button"
@@ -931,9 +1052,6 @@ function Index() {
               <SharePlaceCard details={details} nearby={nearby} />
 
               <PromoStrip placeName={details.name} />
-
-
-
 
               {nearby.map((group) => {
                 const Icon = GROUP_ICON[group.key] ?? MapPin;
