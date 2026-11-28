@@ -55,7 +55,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { explorationSignal } from "@/lib/access-session";
 import {
   inferMarkerKind,
-  parseNearbyQuery,
   searchPlacesWithLocation,
 } from "@/lib/nearby-search";
 
@@ -112,6 +111,35 @@ const GROUP_ICON: Record<string, typeof Car> = {
 
 const QUICK = ["Lalbagh", "MG Road", "Nandi Hills", "VV Puram Food Street", "Cubbon Park"];
 const RANGES: number[] = [5, 10, 25];
+
+const EXPLICIT_NEAR_ME_RE = /\b(near\s*me|nearby|around\s*me|close\s*to\s*me|nearest|closest)\b/i;
+
+function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h =
+    sinLat * sinLat +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * sinLng * sinLng;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function filterNearbyByRange(
+  groups: NearbyGroup[],
+  origin: { lat: number; lng: number },
+  maxKm: number,
+): NearbyGroup[] {
+  return groups.map((group) => ({
+    ...group,
+    places: group.places
+      .map((p) => ({ p, d: distanceKm(origin, p) }))
+      .filter(({ d }) => d <= maxKm)
+      .sort((a, b) => a.d - b.d)
+      .map(({ p }) => p),
+  }));
+}
 
 type MapSnapshot = {
   query: string; results: PlaceLite[]; details: PlaceDetails | null; nearby: NearbyGroup[];
@@ -222,8 +250,8 @@ function Index() {
       range: number;
       forceNearMe: boolean;
     }) => {
-      const { isNearby } = parseNearbyQuery(q);
-      const useNearby = forceNearMe || isNearby;
+      const explicitNearMe = EXPLICIT_NEAR_ME_RE.test(q);
+      const useNearby = forceNearMe || explicitNearMe;
       const browserKey =
         userKey ||
         ((import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY as string | undefined) ??
@@ -300,7 +328,7 @@ function Index() {
   const selectMutation = useMutation({
     mutationFn: async ({ place, range, version }: { place: PlaceLite; range: number; version: number }) => {
       explorationSignal();
-      const [d, n] = await Promise.all([
+      const [d, rawNearby] = await Promise.all([
         userKey
           ? getPlaceDetailsWithKey(userKey, place.id)
           : doDetails({ data: { placeId: place.id } }),
@@ -308,6 +336,7 @@ function Index() {
           ? getNearbyWithKey(userKey, place.lat, place.lng, range)
           : doNearby({ data: { lat: place.lat, lng: place.lng, rangeKm: range } }),
       ]);
+      const n = filterNearbyByRange(rawNearby, { lat: d.lat, lng: d.lng }, range);
       return { d, n, version };
     },
     onSuccess: ({ d, n, version }) => {
@@ -317,7 +346,9 @@ function Index() {
       setCenter({ lat: d.lat, lng: d.lng });
       setError(null);
     },
-    onError: (_, { version }) => { if (version === requestVersion.current) setError("Could not load this place's details."); },
+    onError: (_, { version }) => {
+      if (version === requestVersion.current) setError("Could not load this place's details.");
+    },
   });
 
   const getMyLocation = () =>
@@ -479,6 +510,7 @@ function Index() {
   const select = useCallback(
     (p: PlaceLite) => {
       pushPlace(p.id);
+      setNearMeMode(false);
       setResults([]);
       setResultDistances({});
       setLastNearbyQuery(null);
@@ -489,7 +521,7 @@ function Index() {
       setPlanRouteOn(false);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
-      setSheet("peek");
+      setSheet("half");
       setFullMap(false);
       selectMutation.mutate({ place: p, range: rangeKm, version: ++requestVersion.current });
     },
@@ -503,9 +535,10 @@ function Index() {
         ? await getPlaceDetailsWithKey(userKey, placeId)
         : await doDetails({ data: { placeId } });
       explorationSignal();
-      const n = userKey
+      const rawNearby = userKey
         ? await getNearbyWithKey(userKey, d.lat, d.lng, range)
         : await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
+      const n = filterNearbyByRange(rawNearby, { lat: d.lat, lng: d.lng }, range);
       return { d, n, version };
     },
     onSuccess: ({ d, n, version }) => {
@@ -516,12 +549,15 @@ function Index() {
       setCenter({ lat: d.lat, lng: d.lng });
       setError(null);
     },
-    onError: (_, { version }) => { if (version === requestVersion.current) setError("Could not load details for that spot."); },
+    onError: (_, { version }) => {
+      if (version === requestVersion.current) setError("Could not load details for that spot.");
+    },
   });
 
   const selectById = useCallback(
     (placeId: string) => {
       pushPlace(placeId);
+      setNearMeMode(false);
       setResults([]);
       setResultDistances({});
       setLastNearbyQuery(null);
@@ -549,9 +585,10 @@ function Index() {
 
   const changeRange = (km: number) => {
     setRangeKm(km);
-    if (lastPlace) {
+    const activePlace = details ?? lastPlace;
+    if (activePlace) {
       setNearby([]);
-      selectMutation.mutate({ place: lastPlace, range: km, version: ++requestVersion.current });
+      selectMutation.mutate({ place: activePlace, range: km, version: ++requestVersion.current });
     } else if (lastNearbyQuery) {
       runSearch(lastNearbyQuery, km, true);
     }
@@ -783,7 +820,10 @@ function Index() {
             {QUICK.map((q) => (
               <button
                 key={q}
-                onClick={() => runSearch(q, rangeKm, false)}
+                onClick={() => {
+                  setNearMeMode(false);
+                  runSearch(q, rangeKm, false);
+                }}
                 className="rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
               >
                 {q}
@@ -1062,7 +1102,7 @@ function Index() {
                       <Icon className="size-4 text-primary" />
                       {group.label}
                       <span className="text-xs font-normal text-muted-foreground">
-                        · {group.places.length} nearby
+                        · {group.places.length} within {rangeKm} km
                       </span>
                     </h3>
                     {group.error ? <p role="alert" className="text-xs text-destructive">{group.error}</p> : !group.places.length ? <p className="text-xs text-muted-foreground">No street food results found near this place.</p> : null}
