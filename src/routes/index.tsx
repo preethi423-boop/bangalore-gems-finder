@@ -142,6 +142,91 @@ function filterNearbyByRange(
   }));
 }
 
+async function searchPlacesPaginated({
+  query,
+  apiKey,
+  origin,
+  radiusKm,
+  maxPages = 3,
+}: {
+  query: string;
+  apiKey: string;
+  origin?: { lat: number; lng: number } | null;
+  radiusKm?: number;
+  maxPages?: number;
+}): Promise<PlaceLite[]> {
+  const seen = new Set<string>();
+  const collected: PlaceLite[] = [];
+  let pageToken: string | undefined;
+
+  const baseBody: Record<string, unknown> = {
+    textQuery: query,
+    pageSize: 20,
+    languageCode: "en",
+  };
+  if (origin && radiusKm) {
+    baseBody.locationBias = {
+      circle: {
+        center: { latitude: origin.lat, longitude: origin.lng },
+        radius: Math.min(Math.max(radiusKm * 1000, 1000), 50000),
+      },
+    };
+  }
+
+  for (let page = 0; page < maxPages; page++) {
+    const body = pageToken ? { ...baseBody, pageToken } : baseBody;
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask":
+          "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.primaryTypeDisplayName,nextPageToken",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      if (page === 0) throw new Error(`places-search-${res.status}`);
+      break;
+    }
+    const json = (await res.json()) as {
+      places?: Array<{
+        id?: string;
+        displayName?: { text?: string };
+        formattedAddress?: string;
+        location?: { latitude?: number; longitude?: number };
+        rating?: number;
+        userRatingCount?: number;
+        primaryTypeDisplayName?: { text?: string };
+      }>;
+      nextPageToken?: string;
+    };
+
+    for (const raw of json.places ?? []) {
+      const id = raw.id;
+      const lat = raw.location?.latitude;
+      const lng = raw.location?.longitude;
+      if (!id || lat == null || lng == null || seen.has(id)) continue;
+      seen.add(id);
+      collected.push({
+        id,
+        name: raw.displayName?.text ?? "Unnamed place",
+        address: raw.formattedAddress ?? "",
+        lat,
+        lng,
+        rating: raw.rating,
+        ratingCount: raw.userRatingCount,
+        primaryType: raw.primaryTypeDisplayName?.text,
+      });
+    }
+
+    if (!json.nextPageToken) break;
+    pageToken = json.nextPageToken;
+  }
+
+  return collected;
+}
+
 function buildGoogleMapsDirectionsUrl(
   destination: { lat: number; lng: number },
   waypoints: Array<{ lat: number; lng: number }> = [],
@@ -206,6 +291,7 @@ function Index() {
   const { session, isAdmin } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceLite[]>([]);
+  const [showResults, setShowResults] = useState(false);
   const [resultDistances, setResultDistances] = useState<Record<string, number>>({});
   const [nearMeMode, setNearMeMode] = useState(false);
   const [lastNearbyQuery, setLastNearbyQuery] = useState<string | null>(null);
@@ -279,26 +365,76 @@ function Index() {
           "");
 
       if (useNearby && browserKey) {
-        const res = await searchPlacesWithLocation({
-          query: q,
-          apiKey: browserKey,
-          fallbackCenter: center,
-          radiusKm: range,
-          strictRadius: true,
-        });
-        return {
-          data: res.places as PlaceLite[],
-          distances: Object.fromEntries(res.places.map((p) => [p.id, p.distanceKm])),
-          origin: res.origin,
-          usedCurrentLocation: res.usedCurrentLocation,
-          wasNearby: true,
-          radiusKm: res.radiusKm,
-          queryText: q,
-          version,
-        };
+        let origin = center;
+        let usedCurrentLocation = false;
+        try {
+          origin = await getMyLocation();
+          usedCurrentLocation = true;
+        } catch {
+          origin = center;
+        }
+
+        try {
+          const allPlaces = await searchPlacesPaginated({
+            query: q,
+            apiKey: browserKey,
+            origin,
+            radiusKm: range,
+            maxPages: 3,
+          });
+          const withDist = allPlaces
+            .map((p) => ({ p, d: distanceKm(origin, p) }))
+            .filter(({ d }) => d <= range)
+            .sort((a, b) => a.d - b.d);
+          return {
+            data: withDist.map(({ p }) => p),
+            distances: Object.fromEntries(
+              withDist.map(({ p, d }) => [p.id, Math.round(d * 10) / 10]),
+            ),
+            origin,
+            usedCurrentLocation,
+            wasNearby: true,
+            radiusKm: range,
+            queryText: q,
+            version,
+          };
+        } catch {
+          const res = await searchPlacesWithLocation({
+            query: q,
+            apiKey: browserKey,
+            fallbackCenter: center,
+            radiusKm: range,
+            strictRadius: true,
+          });
+          return {
+            data: res.places as PlaceLite[],
+            distances: Object.fromEntries(res.places.map((p) => [p.id, p.distanceKm])),
+            origin: res.origin,
+            usedCurrentLocation: res.usedCurrentLocation,
+            wasNearby: true,
+            radiusKm: res.radiusKm,
+            queryText: q,
+            version,
+          };
+        }
       }
 
-      const data = await (userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } }));
+      let data: PlaceLite[];
+      if (browserKey) {
+        try {
+          data = await searchPlacesPaginated({
+            query: q,
+            apiKey: browserKey,
+            origin: BLR,
+            radiusKm: 50,
+            maxPages: 3,
+          });
+        } catch {
+          data = await (userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } }));
+        }
+      } else {
+        data = await doSearch({ data: { query: q } });
+      }
       return {
         data,
         distances: {} as Record<string, number>,
@@ -313,6 +449,7 @@ function Index() {
     onSuccess: ({ data, distances, origin, usedCurrentLocation, wasNearby, radiusKm, queryText, version }) => {
       if (version !== searchVersion.current) return;
       setResults(data);
+      setShowResults(data.length > 0);
       setResultDistances(distances);
       if (wasNearby) {
         setLastNearbyQuery(queryText);
@@ -475,9 +612,13 @@ function Index() {
   const closeSearchResults = useCallback(() => {
     ++searchVersion.current;
     searchMutation.reset();
+    setShowResults(false);
     setResults([]);
     setResultDistances({});
     setLastNearbyQuery(null);
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
   }, [searchMutation.reset]);
 
   const addToRoute = (p: PlaceLite) => {
@@ -531,6 +672,7 @@ function Index() {
     const value = q.trim();
     if (!value) return;
     setQuery(value);
+    setShowResults(false);
     setResults([]);
     setResultDistances({});
     searchMutation.mutate({
@@ -647,7 +789,7 @@ function Index() {
       if (!previous) return;
       ++requestVersion.current; ++searchVersion.current;
       selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset();
-      setQuery(previous.query); setResults(previous.results); setDetails(previous.details); setNearby(previous.nearby);
+      setQuery(previous.query); setResults(previous.results); setShowResults(previous.results.length > 0); setDetails(previous.details); setNearby(previous.nearby);
       setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setRouteWaypoints([]); setPlanRouteOn(false); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
       setSheet(previous.sheet); setFullMap(previous.fullMap); setDepth(previous.depth); setError(null);
     };
@@ -895,47 +1037,58 @@ function Index() {
             </p>
           ) : null}
 
-          {results.length > 0 ? (
-            <ul className="mt-2 max-h-72 overflow-y-auto rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]">
-              {results.map((r) => (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closeSearchResults();
-                      select(r);
-                    }}
-                    className="flex w-full items-start gap-3 border-b border-border/60 px-4 py-3 text-left last:border-0 hover:bg-secondary"
+          {showResults && results.length > 0 ? (
+            <div className="mt-2 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]">
+              <div className="flex items-center justify-between border-b border-border/60 px-4 py-2 text-xs text-muted-foreground">
+                <span>
+                  {results.length} {results.length === 1 ? "result" : "results"}
+                </span>
+                <button
+                  type="button"
+                  onClick={closeSearchResults}
+                  aria-label="Close search results"
+                  className="rounded-full p-1 transition hover:bg-secondary hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+              <ul className="max-h-80 overflow-y-auto">
+                {results.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex items-center gap-2 border-b border-border/60 px-4 py-3 last:border-0 hover:bg-secondary"
                   >
-                    <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{r.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {r.address}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeSearchResults();
+                        select(r);
+                      }}
+                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                    >
+                      <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{r.name}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {r.address}
+                        </span>
                       </span>
-                    </span>
-                    <span className="ml-auto flex shrink-0 items-center gap-2">
+                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
                       {resultDistances[r.id] != null ? (
                         <Badge variant="secondary" className="text-[10px]">
                           {resultDistances[r.id]} km
                         </Badge>
                       ) : null}
                       <Stars rating={r.rating} />
-                      <span
-                        role="button"
-                        tabIndex={0}
+                      <button
+                        type="button"
                         aria-label={`Add ${r.name} to full route`}
                         title="Add to full route"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           addToRoute(r);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            addToRoute(r);
-                          }
                         }}
                         className={`rounded-full border p-1.5 transition ${
                           routePlaces.some((x) => x.id === r.id)
@@ -944,12 +1097,12 @@ function Index() {
                         }`}
                       >
                         <Plus className="size-3.5" />
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
         </div>
       </header>
