@@ -36,6 +36,8 @@ import {
   Plus,
   X,
   ListOrdered,
+  LocateFixed,
+  Play,
 } from "lucide-react";
 import { MapView, type MapMarker } from "@/components/MapView";
 import { SharePlaceCard } from "@/components/SharePlaceCard";
@@ -52,7 +54,10 @@ import { activeUserKey, getUserKey, isMapsKeyRejected } from "@/lib/user-key";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 import { useAuth } from "@/hooks/useAuth";
 import { explorationSignal } from "@/lib/access-session";
-
+import {
+  inferMarkerKind,
+  searchPlacesWithLocation,
+} from "@/lib/nearby-search";
 
 import {
   searchPlacesWithKey,
@@ -108,6 +113,54 @@ const GROUP_ICON: Record<string, typeof Car> = {
 const QUICK = ["Lalbagh", "MG Road", "Nandi Hills", "VV Puram Food Street", "Cubbon Park"];
 const RANGES: number[] = [5, 10, 25];
 
+const EXPLICIT_NEAR_ME_RE = /\b(near\s*me|nearby|around\s*me|close\s*to\s*me|nearest|closest)\b/i;
+
+function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h =
+    sinLat * sinLat +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * sinLng * sinLng;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function filterNearbyByRange(
+  groups: NearbyGroup[],
+  origin: { lat: number; lng: number },
+  maxKm: number,
+): NearbyGroup[] {
+  return groups.map((group) => ({
+    ...group,
+    places: group.places
+      .map((p) => ({ p, d: distanceKm(origin, p) }))
+      .filter(({ d }) => d <= maxKm)
+      .sort((a, b) => a.d - b.d)
+      .map(({ p }) => p),
+  }));
+}
+
+function buildGoogleMapsDirectionsUrl(
+  destination: { lat: number; lng: number },
+  waypoints: Array<{ lat: number; lng: number }> = [],
+) {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: `${destination.lat},${destination.lng}`,
+    travelmode: "driving",
+    dir_action: "navigate",
+  });
+  if (waypoints.length > 0) {
+    params.set(
+      "waypoints",
+      waypoints.map((w) => `${w.lat},${w.lng}`).join("|"),
+    );
+  }
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
 type MapSnapshot = {
   query: string; results: PlaceLite[]; details: PlaceDetails | null; nearby: NearbyGroup[];
   center: typeof BLR; route: RouteResult | null; rangeKm: number; lastPlace: PlaceLite | null;
@@ -153,6 +206,9 @@ function Index() {
   const { session, isAdmin } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceLite[]>([]);
+  const [resultDistances, setResultDistances] = useState<Record<string, number>>({});
+  const [nearMeMode, setNearMeMode] = useState(false);
+  const [lastNearbyQuery, setLastNearbyQuery] = useState<string | null>(null);
   const [details, setDetails] = useState<PlaceDetails | null>(null);
   const [nearby, setNearby] = useState<NearbyGroup[]>([]);
   const [center, setCenter] = useState(BLR);
@@ -160,6 +216,7 @@ function Index() {
   const [userKey, setUserKeyState] = useState("");
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [routeStops, setRouteStops] = useState<string[] | null>(null);
+  const [routeWaypoints, setRouteWaypoints] = useState<Array<{ lat: number; lng: number }>>([]);
   const [planRouteOn, setPlanRouteOn] = useState(false);
   const [routePlaces, setRoutePlaces] = useState<PlaceLite[]>([]);
   const [rangeKm, setRangeKm] = useState(5);
@@ -177,7 +234,6 @@ function Index() {
   useEffect(() => {
     setSaved(details ? isFavorite(details.id) : false);
   }, [details, favVersion]);
-
 
   const SHEET_H: Record<"peek" | "half" | "full", string> = {
     peek: "16vh",
@@ -204,21 +260,97 @@ function Index() {
   const doNearby = useServerFn(getNearby);
 
   const searchMutation = useMutation({
-    mutationFn: async ({ q, version }: { q: string; version: number }) => ({
-      data: await (userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } })), version,
-    }),
-    onSuccess: ({ data, version }) => {
+    mutationFn: async ({
+      q,
+      version,
+      range,
+      forceNearMe,
+    }: {
+      q: string;
+      version: number;
+      range: number;
+      forceNearMe: boolean;
+    }) => {
+      const explicitNearMe = EXPLICIT_NEAR_ME_RE.test(q);
+      const useNearby = forceNearMe || explicitNearMe;
+      const browserKey =
+        userKey ||
+        ((import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY as string | undefined) ??
+          "");
+
+      if (useNearby && browserKey) {
+        const res = await searchPlacesWithLocation({
+          query: q,
+          apiKey: browserKey,
+          fallbackCenter: center,
+          radiusKm: range,
+          strictRadius: true,
+        });
+        return {
+          data: res.places as PlaceLite[],
+          distances: Object.fromEntries(res.places.map((p) => [p.id, p.distanceKm])),
+          origin: res.origin,
+          usedCurrentLocation: res.usedCurrentLocation,
+          wasNearby: true,
+          radiusKm: res.radiusKm,
+          queryText: q,
+          version,
+        };
+      }
+
+      const data = await (userKey ? searchPlacesWithKey(userKey, q) : doSearch({ data: { query: q } }));
+      return {
+        data,
+        distances: {} as Record<string, number>,
+        origin: null as { lat: number; lng: number } | null,
+        usedCurrentLocation: false,
+        wasNearby: false,
+        radiusKm: range,
+        queryText: q,
+        version,
+      };
+    },
+    onSuccess: ({ data, distances, origin, usedCurrentLocation, wasNearby, radiusKm, queryText, version }) => {
       if (version !== searchVersion.current) return;
       setResults(data);
-      setError(data.length ? null : "No places found. Try another name.");
+      setResultDistances(distances);
+      if (wasNearby) {
+        setLastNearbyQuery(queryText);
+        setDetails(null);
+        setNearby([]);
+        setLastPlace(null);
+        setRoute(null);
+        setRouteStops(null);
+        setRouteWaypoints([]);
+        if (origin) setCenter(origin);
+        setSheet("peek");
+      } else {
+        setLastNearbyQuery(null);
+      }
+
+      if (!data.length) {
+        setError(
+          wasNearby
+            ? `No matching places found within ${radiusKm} km${usedCurrentLocation ? " of your location" : ""}. Try 10 km or 25 km.`
+            : "No places found. Try another name.",
+        );
+      } else if (wasNearby && !usedCurrentLocation) {
+        setError("Location permission was unavailable—showing results near the current map area.");
+      } else {
+        setError(null);
+      }
     },
-    onError: (_, { version }) => { if (version === searchVersion.current) setError("Could not search right now. Please try again."); },
+    onError: (_, { version }) => {
+      if (version === searchVersion.current) {
+        setError("Could not search right now. Please try again.");
+      }
+    },
   });
 
   const selectMutation = useMutation({
     mutationFn: async ({ place, range, version }: { place: PlaceLite; range: number; version: number }) => {
       explorationSignal();
-      const [d, n] = await Promise.all([
+      const [d, rawNearby] = await Promise.all([
         userKey
           ? getPlaceDetailsWithKey(userKey, place.id)
           : doDetails({ data: { placeId: place.id } }),
@@ -226,6 +358,7 @@ function Index() {
           ? getNearbyWithKey(userKey, place.lat, place.lng, range)
           : doNearby({ data: { lat: place.lat, lng: place.lng, rangeKm: range } }),
       ]);
+      const n = filterNearbyByRange(rawNearby, { lat: d.lat, lng: d.lng }, range);
       return { d, n, version };
     },
     onSuccess: ({ d, n, version }) => {
@@ -235,7 +368,9 @@ function Index() {
       setCenter({ lat: d.lat, lng: d.lng });
       setError(null);
     },
-    onError: (_, { version }) => { if (version === requestVersion.current) setError("Could not load this place's details."); },
+    onError: (_, { version }) => {
+      if (version === requestVersion.current) setError("Could not load this place's details.");
+    },
   });
 
   const getMyLocation = () =>
@@ -272,6 +407,7 @@ function Index() {
     onSuccess: (r) => {
       setRoute(r);
       setRouteStops(null);
+      setRouteWaypoints([]);
       setPlanRouteOn(false);
       setError(null);
     },
@@ -301,11 +437,12 @@ function Index() {
       }
       labels.push(`Visit: ${dest.name}`);
       const r = await computeRouteWithKey(key, origin, { lat: dest.lat, lng: dest.lng }, "DRIVE", stops);
-      return { r, labels };
+      return { r, labels, stops };
     },
-    onSuccess: ({ r, labels }) => {
+    onSuccess: ({ r, labels, stops }) => {
       setRoute(r);
       setRouteStops(labels);
+      setRouteWaypoints(stops);
       setPlanRouteOn(true);
       setError(null);
     },
@@ -327,6 +464,7 @@ function Index() {
       if (version !== requestVersion.current) return;
       setRoute(r);
       setRouteStops([`EV charging: ${r.evStation?.name}`, `Visit: ${destinationName}`]);
+      setRouteWaypoints(r.evStation ? [{ lat: r.evStation.lat, lng: r.evStation.lng }] : []);
       setPlanRouteOn(false);
       setError(null);
       setSheet("half");
@@ -334,8 +472,17 @@ function Index() {
     onError: routeError,
   });
 
+  const closeSearchResults = useCallback(() => {
+    ++searchVersion.current;
+    searchMutation.reset();
+    setResults([]);
+    setResultDistances({});
+    setLastNearbyQuery(null);
+  }, [searchMutation.reset]);
+
   const addToRoute = (p: PlaceLite) => {
     setRoutePlaces((list) => (list.some((x) => x.id === p.id) ? list : [...list, p]));
+    closeSearchResults();
   };
 
   const removeFromRoute = (id: string) => {
@@ -358,11 +505,12 @@ function Index() {
         "DRIVE",
         intermediates,
       );
-      return { r, labels: places.map((p, i) => `Stop ${i + 1}: ${p.name}`) };
+      return { r, labels: places.map((p, i) => `Stop ${i + 1}: ${p.name}`), intermediates };
     },
-    onSuccess: ({ r, labels }) => {
+    onSuccess: ({ r, labels, intermediates }) => {
       setRoute(r);
       setRouteStops(labels);
+      setRouteWaypoints(intermediates);
       setPlanRouteOn(false);
       setError(null);
       setSheet("half");
@@ -370,12 +518,27 @@ function Index() {
     onError: routeError,
   });
 
-  const runSearch = (q: string) => {
+  const openGoogleMapsDirections = useCallback(
+    (destination: { lat: number; lng: number }, waypoints: Array<{ lat: number; lng: number }> = []) => {
+      closeSearchResults();
+      const url = buildGoogleMapsDirectionsUrl(destination, waypoints);
+      window.open(url, "_blank", "noopener,noreferrer");
+    },
+    [closeSearchResults],
+  );
+
+  const runSearch = (q: string, overrideRange?: number, overrideNearMe?: boolean) => {
     const value = q.trim();
     if (!value) return;
     setQuery(value);
     setResults([]);
-    searchMutation.mutate({ q: value, version: ++searchVersion.current });
+    setResultDistances({});
+    searchMutation.mutate({
+      q: value,
+      version: ++searchVersion.current,
+      range: overrideRange ?? rangeKm,
+      forceNearMe: overrideNearMe ?? nearMeMode,
+    });
   };
 
   const pushPlace = (id: string) => {
@@ -391,19 +554,21 @@ function Index() {
   const select = useCallback(
     (p: PlaceLite) => {
       pushPlace(p.id);
-      setResults([]);
+      setNearMeMode(false);
+      closeSearchResults();
       setDetails(null);
       setNearby([]);
       setRoute(null);
       setRouteStops(null);
+      setRouteWaypoints([]);
       setPlanRouteOn(false);
       setLastPlace(p);
       setCenter({ lat: p.lat, lng: p.lng });
-      setSheet("peek");
+      setSheet("half");
       setFullMap(false);
       selectMutation.mutate({ place: p, range: rangeKm, version: ++requestVersion.current });
     },
-    [selectMutation, rangeKm],
+    [selectMutation, rangeKm, closeSearchResults],
   );
 
   const selectByIdMutation = useMutation({
@@ -413,9 +578,10 @@ function Index() {
         ? await getPlaceDetailsWithKey(userKey, placeId)
         : await doDetails({ data: { placeId } });
       explorationSignal();
-      const n = userKey
+      const rawNearby = userKey
         ? await getNearbyWithKey(userKey, d.lat, d.lng, range)
         : await doNearby({ data: { lat: d.lat, lng: d.lng, rangeKm: range } });
+      const n = filterNearbyByRange(rawNearby, { lat: d.lat, lng: d.lng }, range);
       return { d, n, version };
     },
     onSuccess: ({ d, n, version }) => {
@@ -426,23 +592,27 @@ function Index() {
       setCenter({ lat: d.lat, lng: d.lng });
       setError(null);
     },
-    onError: (_, { version }) => { if (version === requestVersion.current) setError("Could not load details for that spot."); },
+    onError: (_, { version }) => {
+      if (version === requestVersion.current) setError("Could not load details for that spot.");
+    },
   });
 
   const selectById = useCallback(
     (placeId: string) => {
       pushPlace(placeId);
-      setResults([]);
+      setNearMeMode(false);
+      closeSearchResults();
       setDetails(null);
       setNearby([]);
       setRoute(null);
       setRouteStops(null);
+      setRouteWaypoints([]);
       setPlanRouteOn(false);
       setSheet("half");
       setFullMap(false);
       selectByIdMutation.mutate({ placeId, range: rangeKm, version: ++requestVersion.current });
     },
-    [selectByIdMutation, rangeKm],
+    [selectByIdMutation, rangeKm, closeSearchResults],
   );
 
   // Open a shared link like /?place=<id> straight into that place's details.
@@ -457,9 +627,12 @@ function Index() {
 
   const changeRange = (km: number) => {
     setRangeKm(km);
-    if (lastPlace) {
+    const activePlace = details ?? lastPlace;
+    if (activePlace) {
       setNearby([]);
-      selectMutation.mutate({ place: lastPlace, range: km, version: ++requestVersion.current });
+      selectMutation.mutate({ place: activePlace, range: km, version: ++requestVersion.current });
+    } else if (lastNearbyQuery) {
+      runSearch(lastNearbyQuery, km, true);
     }
   };
 
@@ -475,19 +648,24 @@ function Index() {
       ++requestVersion.current; ++searchVersion.current;
       selectMutation.reset(); selectByIdMutation.reset(); searchMutation.reset(); routeMutation.reset();
       setQuery(previous.query); setResults(previous.results); setDetails(previous.details); setNearby(previous.nearby);
-      setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setPlanRouteOn(false); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
+      setCenter(previous.center); setRoute(previous.route); setRouteStops(null); setRouteWaypoints([]); setPlanRouteOn(false); setRangeKm(previous.rangeKm); setLastPlace(previous.lastPlace);
       setSheet(previous.sheet); setFullMap(previous.fullMap); setDepth(previous.depth); setError(null);
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
   }, [selectMutation.reset, selectByIdMutation.reset, searchMutation.reset, routeMutation.reset]);
 
+  const searchMarkers: MapMarker[] =
+    !details && results.length > 0
+      ? results.map((p) => ({ ...p, kind: inferMarkerKind(query) }))
+      : [];
   const nearbyMarkers: MapMarker[] = nearby
     .flatMap((g) => g.places.map((p) => ({ ...p, kind: g.key })))
     .slice(0, 40);
+  const baseMarkers = nearbyMarkers.length > 0 ? nearbyMarkers : searchMarkers;
   const markers: MapMarker[] = route?.evStation
-    ? [{ ...route.evStation, kind: "evcar" }, ...nearbyMarkers.filter((p) => p.id !== route.evStation?.id)]
-    : nearbyMarkers;
+    ? [{ ...route.evStation, kind: "evcar" }, ...baseMarkers.filter((p) => p.id !== route.evStation?.id)]
+    : baseMarkers;
 
   const routePanel = route ? (
     <div className="mt-3 rounded-lg border border-border bg-secondary/60 p-3">
@@ -576,7 +754,7 @@ function Index() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search a place in Bengaluru…"
+              placeholder="Search a place or nearby charging station…"
               className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
               aria-label="Search a place"
             />
@@ -603,7 +781,10 @@ function Index() {
                   <Button
                     size="sm"
                     className="h-7 rounded-full px-3 text-xs"
-                    onClick={() => fullRouteMutation.mutate(routePlaces)}
+                    onClick={() => {
+                      closeSearchResults();
+                      fullRouteMutation.mutate(routePlaces);
+                    }}
                     disabled={fullRouteMutation.isPending}
                   >
                     {fullRouteMutation.isPending ? (
@@ -612,6 +793,19 @@ function Index() {
                       <RouteIcon className="size-3.5" />
                     )}
                     Plan route
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 rounded-full px-3 text-xs"
+                    onClick={() => {
+                      const destination = routePlaces[routePlaces.length - 1];
+                      const waypoints = routePlaces.slice(0, -1);
+                      openGoogleMapsDirections(destination, waypoints);
+                    }}
+                  >
+                    <Play className="size-3.5" />
+                    Start
                   </Button>
                 </div>
               </div>
@@ -641,6 +835,24 @@ function Index() {
 
           <div className="mt-2 flex flex-wrap gap-1.5">
             <FavoritesSheet onOpenPlace={selectById} version={favVersion} />
+            <button
+              type="button"
+              onClick={() => {
+                const next = !nearMeMode;
+                setNearMeMode(next);
+                if (next && query.trim()) {
+                  runSearch(query, rangeKm, true);
+                }
+              }}
+              aria-pressed={nearMeMode}
+              className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs backdrop-blur transition ${
+                nearMeMode
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card/90 text-muted-foreground hover:border-primary/50 hover:text-foreground"
+              }`}
+            >
+              <LocateFixed className="size-3.5" /> Near me
+            </button>
             <div
               role="group"
               aria-label="Search range"
@@ -666,7 +878,10 @@ function Index() {
             {QUICK.map((q) => (
               <button
                 key={q}
-                onClick={() => runSearch(q)}
+                onClick={() => {
+                  setNearMeMode(false);
+                  runSearch(q, rangeKm, false);
+                }}
                 className="rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-muted-foreground backdrop-blur transition hover:border-primary/50 hover:text-foreground"
               >
                 {q}
@@ -685,7 +900,11 @@ function Index() {
               {results.map((r) => (
                 <li key={r.id}>
                   <button
-                    onClick={() => select(r)}
+                    type="button"
+                    onClick={() => {
+                      closeSearchResults();
+                      select(r);
+                    }}
                     className="flex w-full items-start gap-3 border-b border-border/60 px-4 py-3 text-left last:border-0 hover:bg-secondary"
                   >
                     <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
@@ -696,6 +915,11 @@ function Index() {
                       </span>
                     </span>
                     <span className="ml-auto flex shrink-0 items-center gap-2">
+                      {resultDistances[r.id] != null ? (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {resultDistances[r.id]} km
+                        </Badge>
+                      ) : null}
                       <Stars rating={r.rating} />
                       <span
                         role="button"
@@ -854,7 +1078,10 @@ function Index() {
                   size="sm"
                   variant="secondary"
                   className="gap-1.5"
-                  onClick={() => routeMutation.mutate({ lat: details.lat, lng: details.lng })}
+                  onClick={() => {
+                    closeSearchResults();
+                    routeMutation.mutate({ lat: details.lat, lng: details.lng });
+                  }}
                   disabled={routeMutation.isPending || evRouteMutation.isPending || planRouteMutation.isPending}
                 >
                   {routeMutation.isPending ? (
@@ -866,10 +1093,27 @@ function Index() {
                 </Button>
                 <Button
                   size="sm"
+                  variant="default"
+                  className="gap-1.5"
+                  onClick={() =>
+                    openGoogleMapsDirections(
+                      { lat: details.lat, lng: details.lng },
+                      routeWaypoints,
+                    )
+                  }
+                >
+                  <Play className="size-4" />
+                  Start
+                </Button>
+                <Button
+                  size="sm"
                   variant={route?.evStation ? "default" : "outline"}
                   className="gap-1.5"
                   aria-pressed={Boolean(route?.evStation)}
-                  onClick={() => evRouteMutation.mutate(details)}
+                  onClick={() => {
+                    closeSearchResults();
+                    evRouteMutation.mutate(details);
+                  }}
                   disabled={evRouteMutation.isPending || routeMutation.isPending || planRouteMutation.isPending || selectMutation.isPending}
                 >
                   {evRouteMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Zap className="size-4" />}
@@ -880,7 +1124,10 @@ function Index() {
                   variant={planRouteOn ? "default" : "outline"}
                   className="gap-1.5"
                   aria-pressed={planRouteOn}
-                  onClick={() => planRouteMutation.mutate(details)}
+                  onClick={() => {
+                    closeSearchResults();
+                    planRouteMutation.mutate(details);
+                  }}
                   disabled={planRouteMutation.isPending || evRouteMutation.isPending || routeMutation.isPending}
                 >
                   {planRouteMutation.isPending ? (
@@ -931,9 +1178,6 @@ function Index() {
 
               <PromoStrip placeName={details.name} />
 
-
-
-
               {nearby.map((group) => {
                 const Icon = GROUP_ICON[group.key] ?? MapPin;
                 if (!group.places.length && !group.error && group.key !== "streetfood") return null;
@@ -943,7 +1187,7 @@ function Index() {
                       <Icon className="size-4 text-primary" />
                       {group.label}
                       <span className="text-xs font-normal text-muted-foreground">
-                        · {group.places.length} nearby
+                        · {group.places.length} within {rangeKm} km
                       </span>
                     </h3>
                     {group.error ? <p role="alert" className="text-xs text-destructive">{group.error}</p> : !group.places.length ? <p className="text-xs text-muted-foreground">No street food results found near this place.</p> : null}
